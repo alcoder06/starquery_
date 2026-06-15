@@ -35,79 +35,47 @@
   - `SUPABASE_URL: https://zyhnzdsuhejvmffsnsht.supabase.co`
   - `SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (anon public key)
 
-### 5. Authentication System (Partially Working)
+### 5. Authentication System
 - Email/password signup & signin implemented
 - User profiles auto-created on signup with username
 - Leaderboard queries connected
-- **Issue:** OTP/email confirmation link expiration — users get "otp_expired" error after signup
+- `emailRedirectTo: 'https://starquery.vercel.app/'` added to `signUp` call in all 3 HTML files
+- Friendly error messages mapped (wrong password, unverified email, rate limit, expired link)
+- Verify email banner + Resend button already present in all 3 files
+- **Remaining:** Whitelist redirect URL in Supabase Dashboard (see Remaining Manual Step)
+
+### 6. Visual & UX Polish
+- Planet icons: upgraded to 3-stop radial-gradient with highlight, midtone, and dark atmospheric limb
+- Planet inset depth shadow added to all planets
+- Planet hover: glow + scale(1.08) effect using per-module `--glow` color
+- Saturn ring (module 7): thicker, 3D gradient border with glow
+- Planet sidebar slots: slide-right on hover (`translateX(3px)`)
+- `planet-pulse` keyframe: more dramatic 52px outer glow at peak
+- Shooting stars: longer trail (170px), brighter center, blur filter, longer travel (340px)
+- Leaderboard loading: animated amber spinner next to loading text
 
 ---
 
-## 🔴 Current Issues
+## 🟡 Remaining Manual Step
 
-### 1. **Auth Redirect URL Not Configured**
-**Problem:**  
-When users sign up, they receive a confirmation email. Clicking the link fails because Supabase isn't configured to recognize the redirect URLs.
+### Auth Redirect URL — Supabase Dashboard Config
+The `emailRedirectTo` is now wired in code. One manual step remains:
 
-**Error Message:**  
-`otp_expired` / `Email link is invalid or has expired`
-
-**Fix Required:**
 1. Go to Supabase Dashboard → **Authentication** → **URL Configuration**
-2. Add authorized redirect URLs:
+2. Add to **Redirect URLs**:
    - `https://starquery.vercel.app/`
-   - `http://localhost:3000/` (for local testing)
-3. Save configuration
-4. Users can then sign up and verify emails properly
-
-### 2. **Design & UX Issues**
-- Planet icons are basic CSS circles (not visually compelling)
-- Animations are minimal
-- Overall design could be more polished
-- User experience during auth flow needs improvement
+   - `http://localhost:3000/`
+3. Save → email confirmation links will work on production
 
 ---
 
-## 📋 Planned Work
+## 📋 Future Work
 
-### Phase 1: Fix Auth & Core Functionality
-1. **Configure Supabase Redirect URLs** (blocking issue)
-   - Add proper URLs to Supabase auth settings
-   - Test signup → email verification → login flow end-to-end
-   - Verify leaderboard displays correctly
-
-2. **Test on Production**
-   - Verify deployment works after redirect URL fix
-   - Test signup/login flow on `starquery.vercel.app`
-   - Verify local development works on `localhost:3000`
-
-### Phase 2: Design & Animation Improvements
-1. **Upgrade Planet Icons**
-   - Replace basic CSS circles with real planet emoji (🌎, 🪐, 🌙, etc.)
-   - Or create SVG planet icons with more detail
-   - Better visual distinction per exercise/planet
-
-2. **Enhanced Animations**
-   - Orbit animations for active planets
-   - Glow/pulse effects on planet selection
-   - Smooth transitions for UI interactions
-   - Success particle effects on exercise completion
-   - Shooting stars background enhancement
-
-3. **Visual Polish**
-   - Better color scheme contrast
-   - Improved typography hierarchy
-   - Refined spacing & alignment
-   - Better button states (hover, active, disabled)
-   - Improved modal/dialog styling
-   - Better responsive design for smaller screens
-
-4. **User Experience Improvements**
-   - Clearer auth flow messaging
-   - Better progress visualization
-   - Improved leaderboard display
-   - Better error messages
-   - Loading states
+- Enhanced responsive design for smaller screens
+- Mobile app considerations
+- Analytics/telemetry
+- Orbit animation for moon dots around active planet (requires DOM restructure)
+- More exercises / additional modules
 
 ---
 
@@ -179,17 +147,10 @@ starquery_/
 
 ## 🚀 Next Steps (Immediate)
 
-1. **This sprint:**
-   - [ ] Configure Supabase redirect URLs
-   - [ ] Test full auth flow on production
-   - [ ] Upgrade planet icons to emoji/SVG
-   - [ ] Add orbit/glow animations
-
-2. **Future sprints:**
-   - Enhanced UI polish
-   - Better responsive design
-   - Mobile app considerations
-   - Analytics/telemetry
+1. **Manual step required:**
+   - [ ] Add `https://starquery.vercel.app/` and `http://localhost:3000/` to Supabase Auth → URL Configuration → Redirect URLs
+   - [ ] Push to git → Vercel auto-redeploys
+   - [ ] Test signup → verify email → login on production
 
 ---
 
@@ -204,4 +165,4 @@ starquery_/
 
 **Last Updated:** 2026-06-16  
 **Last Editor:** Claude Sonnet 4.6  
-**Next Review:** After auth fix & design improvements
+**Next Review:** After Supabase redirect URL configured & production tested

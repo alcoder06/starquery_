@@ -169,18 +169,19 @@ td.null{color:var(--faint);font-style:italic}
 .nebula-b{width:600px;height:480px;background:radial-gradient(circle,rgba(167,139,250,.07),transparent 70%);bottom:-12%;right:-8%;animation-duration:30s;animation-direction:alternate-reverse}
 @keyframes nebula-drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(28px,-18px) scale(1.05)}100%{transform:translate(-18px,24px) scale(.97)}}
 /* ---- shooting stars ---- */
-.shooting-star{position:fixed;pointer-events:none;z-index:0;width:110px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(205,216,245,.85),transparent);border-radius:2px;animation:shoot .75s ease-out forwards}
-@keyframes shoot{0%{opacity:0;transform:rotate(-35deg) translateX(0)}15%{opacity:1}100%{opacity:0;transform:rotate(-35deg) translateX(-280px)}}
+.shooting-star{position:fixed;pointer-events:none;z-index:0;width:170px;height:2px;background:linear-gradient(90deg,transparent 0%,rgba(205,216,245,.7) 20%,rgba(255,255,255,1) 45%,rgba(205,216,245,.5) 65%,transparent 100%);border-radius:2px;filter:blur(.3px);animation:shoot .95s ease-out forwards}
+@keyframes shoot{0%{opacity:0;transform:rotate(-35deg) translateX(0)}10%{opacity:1}80%{opacity:.7}100%{opacity:0;transform:rotate(-35deg) translateX(-340px)}}
 /* ---- planet nav ---- */
-.planet-slot{display:flex;align-items:center;gap:12px;padding:8px 6px 8px 0;margin-left:-13px;border-radius:12px;width:100%;text-align:left;cursor:pointer;border:none;background:none;color:inherit;font-family:inherit;transition:background .15s;position:relative}
-.planet-slot:hover{background:rgba(255,255,255,.04)}
+.planet-slot{display:flex;align-items:center;gap:12px;padding:8px 6px 8px 0;margin-left:-13px;border-radius:12px;width:100%;text-align:left;cursor:pointer;border:none;background:none;color:inherit;font-family:inherit;transition:background .15s,transform .18s;position:relative}
+.planet-slot:hover{background:rgba(255,255,255,.04);transform:translateX(3px)}
 .planet-slot.active{background:rgba(255,180,84,.06)}
 .planet-wrap{position:relative;flex:0 0 44px;height:54px;display:flex;align-items:center;justify-content:center}
-.planet-body{width:44px;height:44px;border-radius:50%;background:var(--pg,var(--panel2));box-shadow:0 2px 12px rgba(0,0,0,.5);transition:box-shadow .3s;position:relative}
+.planet-body{width:44px;height:44px;border-radius:50%;background:var(--pg,var(--panel2));box-shadow:0 2px 12px rgba(0,0,0,.5),inset -3px -3px 8px rgba(0,0,0,.4);transition:box-shadow .2s,transform .2s;position:relative}
 .planet-slot.active .planet-body{animation:planet-pulse 2.6s ease-in-out infinite}
-.planet-slot.done .planet-body{box-shadow:0 0 0 3px rgba(74,222,128,.45),0 2px 12px rgba(0,0,0,.5)}
+.planet-slot.done .planet-body{box-shadow:0 0 0 3px rgba(74,222,128,.45),0 2px 12px rgba(0,0,0,.5),inset -3px -3px 8px rgba(0,0,0,.4)}
+.planet-slot:not(.active):hover .planet-body{box-shadow:0 0 18px var(--glow,rgba(255,180,84,.45)),0 2px 12px rgba(0,0,0,.5),inset -3px -3px 8px rgba(0,0,0,.4);transform:scale(1.08)}
 .planet-ring-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-.planet-ring{position:absolute;width:64px;height:14px;border:2px solid rgba(186,230,253,.55);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%) rotateX(68deg);pointer-events:none}
+.planet-ring{position:absolute;width:70px;height:17px;border:3px solid transparent;border-top-color:rgba(186,230,253,.8);border-bottom-color:rgba(186,230,253,.25);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%) rotateX(68deg);pointer-events:none;box-shadow:0 0 6px rgba(186,230,253,.2)}
 .planet-moons{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:3px;padding-bottom:2px}
 .moon{width:5px;height:5px;border-radius:50%;background:var(--line);transition:.2s}
 .moon.ok{background:var(--green);box-shadow:0 0 4px var(--green)}
@@ -198,7 +199,7 @@ td.null{color:var(--faint);font-style:italic}
 .free-node-btn.active .free-icon{border-color:var(--amber);color:var(--amber)}
 .free-node-btn.active::after{content:'\1F680';position:absolute;right:8px;top:50%;transform:translateY(-50%) rotate(45deg);font-size:12px;filter:drop-shadow(0 0 5px rgba(255,180,84,.6))}
 /* ---- planet animations ---- */
-@keyframes planet-pulse{0%,100%{box-shadow:0 0 10px var(--glow,rgba(255,180,84,.5)),0 2px 12px rgba(0,0,0,.5)}50%{box-shadow:0 0 22px var(--glow,rgba(255,180,84,.75)),0 0 40px var(--glow,rgba(255,180,84,.3)),0 2px 12px rgba(0,0,0,.5)}}
+@keyframes planet-pulse{0%,100%{box-shadow:0 0 8px var(--glow,rgba(255,180,84,.45)),0 2px 12px rgba(0,0,0,.5),inset -3px -3px 8px rgba(0,0,0,.4)}50%{box-shadow:0 0 28px var(--glow,rgba(255,180,84,.85)),0 0 52px var(--glow,rgba(255,180,84,.3)),0 2px 12px rgba(0,0,0,.5),inset -3px -3px 8px rgba(0,0,0,.4)}}
 /* ---- success particles ---- */
 .sparkle{position:fixed;pointer-events:none;z-index:200;border-radius:50%;animation:sparkle-out var(--dur,.6s) ease-out forwards}
 @keyframes sparkle-out{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(.2)}}
@@ -909,14 +910,14 @@ const $ = id => document.getElementById(id);
 const KEY = 'starquery_progress_v1';
 const RANKS = [['Cadet',0],['Navigator',75],['Pilot',175],['Lieutenant',300],['Commander',450],['Captain',600],['Fleet Admiral',750]];
 const PLANET_CONFIG = {
-  1:{g:'radial-gradient(circle at 35% 30%,#FFD580,#92400E)',glow:'rgba(255,213,128,.65)',concept:'SELECT'},
-  2:{g:'radial-gradient(circle at 35% 30%,#93C5FD,#1D4ED8)',glow:'rgba(147,197,253,.6)',concept:'WHERE'},
-  3:{g:'radial-gradient(circle at 35% 30%,#C4B5FD,#5B21B6)',glow:'rgba(196,181,253,.6)',concept:'ORDER BY'},
-  4:{g:'radial-gradient(circle at 35% 30%,#FCA5A5,#991B1B)',glow:'rgba(252,165,165,.6)',concept:'GROUP BY'},
-  5:{g:'radial-gradient(circle at 35% 30%,#86EFAC,#14532D)',glow:'rgba(134,239,172,.55)',concept:'JOIN'},
-  6:{g:'radial-gradient(circle at 35% 30%,#94A3B8,#0F172A)',glow:'rgba(148,163,184,.45)',concept:'CTEs'},
-  7:{g:'radial-gradient(circle at 35% 30%,#BAE6FD,#075985)',glow:'rgba(186,230,253,.6)',concept:'WINDOW',ring:true},
-  8:{g:'radial-gradient(circle at 35% 30%,#F0ABFC,#701A75)',glow:'rgba(240,171,252,.6)',concept:'EXPERT'},
+  1:{g:'radial-gradient(circle at 32% 28%,#FFF4CC 0%,#FFD580 42%,#7A3A0A 100%)',glow:'rgba(255,213,128,.65)',concept:'SELECT'},
+  2:{g:'radial-gradient(circle at 32% 28%,#DBEAFE 0%,#93C5FD 42%,#0D2B7A 100%)',glow:'rgba(147,197,253,.6)',concept:'WHERE'},
+  3:{g:'radial-gradient(circle at 32% 28%,#EDE9FE 0%,#C4B5FD 42%,#2E1065 100%)',glow:'rgba(196,181,253,.6)',concept:'ORDER BY'},
+  4:{g:'radial-gradient(circle at 32% 28%,#FEE2E2 0%,#FCA5A5 42%,#5A0A0A 100%)',glow:'rgba(252,165,165,.6)',concept:'GROUP BY'},
+  5:{g:'radial-gradient(circle at 32% 28%,#D1FAE5 0%,#86EFAC 42%,#052E16 100%)',glow:'rgba(134,239,172,.55)',concept:'JOIN'},
+  6:{g:'radial-gradient(circle at 32% 28%,#CBD5E1 0%,#94A3B8 42%,#020617 100%)',glow:'rgba(148,163,184,.45)',concept:'CTEs'},
+  7:{g:'radial-gradient(circle at 32% 28%,#E0F2FE 0%,#BAE6FD 42%,#022B4C 100%)',glow:'rgba(186,230,253,.6)',concept:'WINDOW',ring:true},
+  8:{g:'radial-gradient(circle at 32% 28%,#FAE8FF 0%,#F0ABFC 42%,#3B0764 100%)',glow:'rgba(240,171,252,.6)',concept:'EXPERT'},
 };
 
 /* ---------- animations ---------- */
@@ -1459,13 +1460,23 @@ function showAuthTab(tab){
 }
 function setAuthMsg(msg, ok=false){ const el=$('authMsg'); el.textContent=msg; el.className='auth-msg'+(ok?' ok':''); }
 
+function friendlyAuthError(e){
+  const m=(e?.message||'').toLowerCase();
+  if(m.includes('invalid login credentials')||m.includes('invalid_credentials')) return 'Wrong email or password.';
+  if(m.includes('email not confirmed')||m.includes('not confirmed')) return 'Please verify your email — check your inbox.';
+  if(m.includes('user already registered')) return 'An account with this email already exists — try signing in.';
+  if(m.includes('rate limit')||m.includes('too many')) return 'Too many attempts — please wait a moment and try again.';
+  if(m.includes('otp_expired')||m.includes('expired')) return 'That link has expired — please sign in or request a new one.';
+  return e?.message||'Something went wrong. Please try again.';
+}
+
 async function doSignIn(){
   if(!sb) return;
   const email=($('loginEmail').value||'').trim(), pass=$('loginPass').value;
   if(!email||!pass){ setAuthMsg('Enter your email and password.'); return; }
   setAuthMsg('Launching…');
   const {error}=await sb.auth.signInWithPassword({email, password:pass});
-  if(error){ setAuthMsg(error.message); return; }
+  if(error){ setAuthMsg(friendlyAuthError(error)); return; }
   closeAuthModal();
   toast('<b>Welcome back, cosmonaut.</b> Progress syncing…');
 }
@@ -1484,8 +1495,8 @@ async function doSignUp(){
   const {data:taken}=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
   if(taken){ setAuthMsg('That callsign is taken — choose another.'); return; }
   setAuthMsg('Registering…');
-  const {error}=await sb.auth.signUp({email, password:pass, options:{data:{username}}});
-  if(error){ setAuthMsg(error.message); return; }
+  const {error}=await sb.auth.signUp({email, password:pass, options:{data:{username}, emailRedirectTo:'https://starquery.vercel.app/'}});
+  if(error){ setAuthMsg(friendlyAuthError(error)); return; }
   closeAuthModal();
   toast('📧 Check your inbox to verify your email, then sign in!', 5000);
 }
@@ -1515,7 +1526,7 @@ async function resendVerification(){
 function openLeaderboard(){ $('lbModal').classList.add('show'); loadLeaderboard(); }
 async function loadLeaderboard(){
   const list=$('lbList');
-  list.innerHTML='<div style="text-align:center;padding:24px;color:var(--faint);font-family:var(--mono);font-size:12px;letter-spacing:.1em">LOADING TELEMETRY…</div>';
+  list.innerHTML='<div style="text-align:center;padding:24px;color:var(--faint);font-family:var(--mono);font-size:12px;letter-spacing:.1em"><span style="display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px"></span>LOADING TELEMETRY…</div>';
   if(!sb){
     list.innerHTML='<div class="notcfg">Leaderboard requires Supabase setup. Configure <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> and deploy to see rankings.</div>';
     return;
