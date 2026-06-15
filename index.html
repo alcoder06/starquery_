@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarQuery — Become a Data Cosmonaut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --void:#070A14; --deep:#0C1122; --panel:#11182E; --panel2:#161F3A;
+  --line:#243154; --line-soft:#1A2440;
+  --ink:#E7ECF8; --dim:#8B97B8; --faint:#5A6585;
+  --amber:#FFB454; --amber-deep:#E08B1D; --cyan:#7DD3FC; --violet:#A78BFA;
+  --green:#4ADE80; --red:#FB7185;
+  --disp:'Space Grotesk',sans-serif; --body:'IBM Plex Sans',sans-serif; --mono:'JetBrains Mono',monospace;
+  --r:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;overflow:hidden}
+::selection{background:rgba(255,180,84,.3)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible,a:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ---- starfield ---- */
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+   radial-gradient(ellipse 80% 60% at 75% -10%, rgba(167,139,250,.10), transparent 60%),
+   radial-gradient(ellipse 60% 50% at 10% 110%, rgba(125,211,252,.07), transparent 60%),
+   var(--void);}
+.star{position:absolute;border-radius:50%;background:#cdd8f5;animation:twinkle var(--tw,4s) ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.85}}
+@media (prefers-reduced-motion: reduce){
+  .star{animation:none;opacity:.4}
+  *{transition:none!important;animation-duration:.01ms!important}
+}
+
+/* ---- app shell ---- */
+#app{position:relative;z-index:1;display:grid;grid-template-rows:56px 1fr;height:100vh}
+.topbar{display:flex;align-items:center;gap:18px;padding:0 20px;border-bottom:1px solid var(--line-soft);background:rgba(7,10,20,.7);backdrop-filter:blur(8px)}
+.logo{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:.14em;display:flex;align-items:center;gap:10px}
+.logo .q{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;
+  background:radial-gradient(circle at 32% 30%, #FFD9A0, var(--amber-deep));color:#1a0f00;font-size:15px;letter-spacing:0;box-shadow:0 0 18px rgba(255,180,84,.45)}
+.logo small{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--faint);font-weight:400;margin-left:2px}
+.topbar .spacer{flex:1}
+.tele{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+.rankchip{display:flex;align-items:center;gap:9px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+.rankchip .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.rankchip b{font-family:var(--disp);font-size:13px;letter-spacing:.06em}
+.xpwrap{display:flex;flex-direction:column;gap:3px;min-width:150px}
+.xpbar{height:5px;border-radius:99px;background:var(--line-soft);overflow:hidden}
+.xpbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber-deep),var(--amber));border-radius:99px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.streak{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--cyan)}
+.iconbtn{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--dim);transition:.15s}
+.iconbtn:hover{color:var(--ink);border-color:var(--faint)}
+
+.layout{display:grid;grid-template-columns:268px 1fr 296px;min-height:0}
+
+/* ---- flight path sidebar ---- */
+.flight{border-right:1px solid var(--line-soft);padding:22px 14px 22px 20px;overflow-y:auto}
+.flight h2{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--faint);text-transform:uppercase;margin-bottom:18px}
+.path{position:relative;margin-left:13px}
+.path::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:2px;
+  background:linear-gradient(var(--line) 60%, transparent 0) center/2px 10px repeat-y}
+
+/* ---- main column ---- */
+.main{display:flex;flex-direction:column;min-width:0;overflow-y:auto;padding:22px 26px 80px}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.crumb .sep{color:var(--faint)}
+.extitle{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.01em;margin-bottom:6px}
+.brief{color:var(--dim);max-width:640px;margin-bottom:6px}
+.task{margin:14px 0 16px;padding:13px 16px;border-left:3px solid var(--amber);background:linear-gradient(90deg,rgba(255,180,84,.08),transparent 70%);border-radius:0 10px 10px 0;max-width:680px}
+.task b{color:var(--amber)}
+.task code{font-family:var(--mono);font-size:13px;color:var(--cyan)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 18px}
+.chip{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-family:var(--mono);font-size:11px;color:var(--dim);transition:.15s}
+.chip:hover{border-color:var(--faint);color:var(--ink)}
+.chip.cur{border-color:var(--amber);color:var(--amber)}
+.chip.ok{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.4);color:var(--green)}
+
+.console{border:1px solid var(--line);border-radius:var(--r);background:var(--deep);overflow:hidden;max-width:860px}
+.console .chead{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line-soft);background:var(--panel)}
+.console .chead .lamp{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.console .chead span{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.console .chead .right{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+textarea#editor{width:100%;min-height:150px;resize:vertical;background:transparent;border:none;color:var(--ink);
+  font-family:var(--mono);font-size:14px;line-height:1.7;padding:14px 16px;tab-size:2}
+textarea#editor::placeholder{color:var(--faint)}
+.cfoot{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
+.btn{font-family:var(--disp);font-weight:500;font-size:13.5px;letter-spacing:.04em;padding:9px 18px;border-radius:9px;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:linear-gradient(180deg,var(--amber),var(--amber-deep));color:#1a0f00;box-shadow:0 2px 14px rgba(255,180,84,.35)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border:1px solid var(--line);color:var(--dim)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--faint)}
+.kbd{font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+
+.verdict{max-width:860px;margin-top:14px;border-radius:var(--r);padding:13px 16px;display:none;align-items:flex-start;gap:11px;font-size:14px}
+.verdict.show{display:flex}
+.verdict.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35)}
+.verdict.bad{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.3)}
+.verdict.err{background:rgba(255,180,84,.07);border:1px solid rgba(255,180,84,.3)}
+.verdict .vt{font-family:var(--disp);font-weight:700;letter-spacing:.04em}
+.verdict.ok .vt{color:var(--green)} .verdict.bad .vt{color:var(--red)} .verdict.err .vt{color:var(--amber)}
+.verdict .vm{color:var(--dim);font-size:13px}
+.verdict code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+
+.hintbox,.solbox{max-width:860px;margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:12px 15px;font-size:13.5px;color:var(--dim);display:none}
+.hintbox.show,.solbox.show{display:block}
+.hintbox b{color:var(--cyan)} .solbox b{color:var(--violet)}
+.solbox pre{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:8px;white-space:pre-wrap}
+
+.results{max-width:860px;margin-top:16px}
+.results h3{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--faint);text-transform:uppercase;margin-bottom:8px}
+.tblwrap{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:320px;background:var(--deep)}
+table.grid{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+table.grid th{position:sticky;top:0;background:var(--panel);color:var(--cyan);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:500;letter-spacing:.04em;white-space:nowrap}
+table.grid td{padding:7px 12px;border-bottom:1px solid var(--line-soft);color:var(--ink);white-space:nowrap}
+table.grid tr:last-child td{border-bottom:none}
+td.null{color:var(--faint);font-style:italic}
+.rowcount{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px}
+
+/* ---- schema panel ---- */
+.schema{border-left:1px solid var(--line-soft);padding:22px 18px;overflow-y:auto}
+.schema h2{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--faint);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.schema h2::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.tbl{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--panel);overflow:hidden}
+.tbl>button{display:flex;width:100%;align-items:center;gap:8px;padding:9px 12px;font-family:var(--mono);font-size:12.5px;color:var(--amber);text-align:left}
+.tbl>button .n{margin-left:auto;font-size:10px;color:var(--faint)}
+.tbl .cols{display:none;padding:2px 12px 10px;font-family:var(--mono);font-size:11.5px}
+.tbl.open .cols{display:block}
+.tbl .cols div{display:flex;justify-content:space-between;padding:3px 0;color:var(--ink)}
+.tbl .cols span{color:var(--faint)}
+.tbl .peek{margin-top:8px;font-size:10.5px;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase}
+.dialect{margin-top:16px;padding:11px 13px;border:1px solid var(--line-soft);border-radius:10px;font-size:12px;color:var(--faint)}
+.dialect b{color:var(--dim)}
+
+/* ---- overlays ---- */
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(5,7,15,.78);backdrop-filter:blur(6px);display:none;place-items:center;padding:20px}
+.overlay.show{display:grid}
+.modal{width:min(640px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px 30px;max-height:88vh;overflow-y:auto}
+.modal h2{font-family:var(--disp);font-size:22px;margin-bottom:4px}
+.modal .sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:22px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--deep)}
+.stat .v{font-family:var(--disp);font-size:26px;font-weight:700;color:var(--amber)}
+.stat .l{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-top:3px}
+.mbar{margin-bottom:11px}
+.mbar .t{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:5px}
+.mbar .b{height:6px;border-radius:99px;background:var(--line-soft)}
+.mbar .b i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--violet))}
+
+#boot{position:fixed;inset:0;z-index:99;background:var(--void);display:grid;place-items:center;text-align:center}
+#boot .ring{width:54px;height:54px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--amber);animation:spin 1s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#boot p{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);z-index:60;
+  background:var(--panel);border:1px solid rgba(74,222,128,.5);color:var(--ink);border-radius:12px;padding:12px 20px;
+  font-family:var(--disp);font-size:15px;opacity:0;pointer-events:none;transition:.35s;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast b{color:var(--green)}
+
+/* ---- nebulae ---- */
+.nebula{position:fixed;pointer-events:none;border-radius:50%;filter:blur(90px);animation:nebula-drift 22s ease-in-out infinite alternate;z-index:0}
+.nebula-a{width:520px;height:400px;background:radial-gradient(circle,rgba(125,211,252,.08),transparent 70%);top:-8%;left:-6%;animation-duration:24s}
+.nebula-b{width:600px;height:480px;background:radial-gradient(circle,rgba(167,139,250,.07),transparent 70%);bottom:-12%;right:-8%;animation-duration:30s;animation-direction:alternate-reverse}
+@keyframes nebula-drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(28px,-18px) scale(1.05)}100%{transform:translate(-18px,24px) scale(.97)}}
+/* ---- shooting stars ---- */
+.shooting-star{position:fixed;pointer-events:none;z-index:0;width:110px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(205,216,245,.85),transparent);border-radius:2px;animation:shoot .75s ease-out forwards}
+@keyframes shoot{0%{opacity:0;transform:rotate(-35deg) translateX(0)}15%{opacity:1}100%{opacity:0;transform:rotate(-35deg) translateX(-280px)}}
+/* ---- planet nav ---- */
+.planet-slot{display:flex;align-items:center;gap:12px;padding:8px 6px 8px 0;margin-left:-13px;border-radius:12px;width:100%;text-align:left;cursor:pointer;border:none;background:none;color:inherit;font-family:inherit;transition:background .15s;position:relative}
+.planet-slot:hover{background:rgba(255,255,255,.04)}
+.planet-slot.active{background:rgba(255,180,84,.06)}
+.planet-wrap{position:relative;flex:0 0 44px;height:54px;display:flex;align-items:center;justify-content:center}
+.planet-body{width:44px;height:44px;border-radius:50%;background:var(--pg,var(--panel2));box-shadow:0 2px 12px rgba(0,0,0,.5);transition:box-shadow .3s;position:relative}
+.planet-slot.active .planet-body{animation:planet-pulse 2.6s ease-in-out infinite}
+.planet-slot.done .planet-body{box-shadow:0 0 0 3px rgba(74,222,128,.45),0 2px 12px rgba(0,0,0,.5)}
+.planet-ring-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.planet-ring{position:absolute;width:64px;height:14px;border:2px solid rgba(186,230,253,.55);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%) rotateX(68deg);pointer-events:none}
+.planet-moons{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:3px;padding-bottom:2px}
+.moon{width:5px;height:5px;border-radius:50%;background:var(--line);transition:.2s}
+.moon.ok{background:var(--green);box-shadow:0 0 4px var(--green)}
+.moon.cur{background:var(--amber);box-shadow:0 0 4px var(--amber)}
+.planet-info{min-width:0;padding-left:2px}
+.planet-label{display:block;font-family:var(--disp);font-size:13.5px;font-weight:500;letter-spacing:.02em;transition:color .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.planet-slot.active .planet-label{color:var(--amber)}
+.planet-sub-txt{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin-top:1px}
+.planet-prog-txt{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
+.planet-slot.active::after{content:'\1F680';position:absolute;right:8px;top:50%;transform:translateY(-50%) rotate(45deg);font-size:12px;filter:drop-shadow(0 0 5px rgba(255,180,84,.6))}
+.free-node-btn{display:flex;align-items:center;gap:12px;padding:8px 6px 8px 0;margin-left:-13px;border-radius:12px;width:100%;text-align:left;cursor:pointer;border:none;background:none;color:inherit;font-family:inherit;transition:background .15s;position:relative}
+.free-node-btn:hover{background:rgba(255,255,255,.04)}
+.free-node-btn.active{background:rgba(255,180,84,.06)}
+.free-icon{flex:0 0 44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);border:1.5px dashed var(--line);font-size:18px;color:var(--faint);transition:.2s}
+.free-node-btn.active .free-icon{border-color:var(--amber);color:var(--amber)}
+.free-node-btn.active::after{content:'\1F680';position:absolute;right:8px;top:50%;transform:translateY(-50%) rotate(45deg);font-size:12px;filter:drop-shadow(0 0 5px rgba(255,180,84,.6))}
+/* ---- planet animations ---- */
+@keyframes planet-pulse{0%,100%{box-shadow:0 0 10px var(--glow,rgba(255,180,84,.5)),0 2px 12px rgba(0,0,0,.5)}50%{box-shadow:0 0 22px var(--glow,rgba(255,180,84,.75)),0 0 40px var(--glow,rgba(255,180,84,.3)),0 2px 12px rgba(0,0,0,.5)}}
+/* ---- success particles ---- */
+.sparkle{position:fixed;pointer-events:none;z-index:200;border-radius:50%;animation:sparkle-out var(--dur,.6s) ease-out forwards}
+@keyframes sparkle-out{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(.2)}}
+.xp-pop{position:fixed;pointer-events:none;z-index:200;font-family:var(--disp);font-size:20px;font-weight:700;color:var(--amber);text-shadow:0 0 12px rgba(255,180,84,.7);white-space:nowrap;animation:xp-pop .95s ease-out forwards}
+@keyframes xp-pop{0%{opacity:1;transform:translateY(0) scale(1)}55%{opacity:1;transform:translateY(-40px) scale(1.12)}100%{opacity:0;transform:translateY(-68px) scale(.85)}}
+/* ---- module complete overlay ---- */
+#mcOverlay{position:fixed;inset:0;z-index:300;display:none;place-items:center;background:rgba(4,6,14,.85);backdrop-filter:blur(10px)}
+#mcOverlay.show{display:grid}
+.mc-box{text-align:center;padding:48px 32px;position:relative;pointer-events:none}
+.mc-planet{width:110px;height:110px;border-radius:50%;margin:0 auto 28px}
+.mc-planet.mc-pop-run{animation:mc-pop .55s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes mc-pop{0%{opacity:0;transform:scale(.15)}100%{opacity:1;transform:scale(1)}}
+.mc-heading{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:.07em;color:var(--amber);margin-bottom:10px}
+.mc-hint{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase}
+.starburst{position:absolute;width:8px;height:8px;border-radius:50%;animation:burst var(--d,1.2s) ease-out forwards}
+@keyframes burst{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
+/* ---- rank-up flash ---- */
+#rankFlash{position:fixed;inset:0;z-index:250;pointer-events:none;background:rgba(255,180,84,.28);opacity:0}
+#rankFlash.flash{animation:rank-flash .75s ease-out forwards}
+@keyframes rank-flash{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+.rank-pop{animation:rank-pop .5s cubic-bezier(.2,1.5,.4,1)}
+@keyframes rank-pop{0%,100%{transform:scale(1)}45%{transform:scale(1.55)}}
+/* ---- difficulty badge ---- */
+.diff2{font-family:var(--mono);font-size:9px;color:var(--amber);border:1px solid rgba(255,180,84,.4);border-radius:4px;padding:1px 5px;vertical-align:middle;margin-left:6px}
+/* ---- auth & leaderboard ---- */
+.auth-input{width:100%;background:var(--deep);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--body);font-size:14px;padding:10px 14px;outline:none;transition:border-color .15s;margin-bottom:10px;display:block}
+.auth-input:focus{border-color:var(--amber)}
+.auth-input::placeholder{color:var(--faint)}
+.modal-tabs{display:flex;gap:6px;margin-bottom:22px}
+.modal-tab{flex:1;padding:8px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--dim);font-family:var(--disp);font-size:13.5px;font-weight:500;letter-spacing:.04em;transition:.15s}
+.modal-tab:hover{color:var(--ink);border-color:var(--faint)}
+.modal-tab.active{background:rgba(255,180,84,.1);border-color:rgba(255,180,84,.4);color:var(--amber)}
+.auth-msg{font-size:13px;color:var(--red);margin-top:10px;min-height:18px;line-height:1.4}
+.auth-msg.ok{color:var(--green)}
+.modal-wrap{position:relative}
+.modal-close{position:absolute;top:18px;right:20px;background:none;border:none;color:var(--faint);font-size:22px;line-height:1;cursor:pointer;padding:2px 6px}
+.modal-close:hover{color:var(--ink)}
+#userChip{display:flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap}
+#userChip .gdot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex:0 0 7px}
+#verifyBanner{display:none;position:fixed;top:56px;left:0;right:0;z-index:35;background:rgba(255,180,84,.1);border-bottom:1px solid rgba(255,180,84,.28);padding:8px 20px;font-family:var(--mono);font-size:12px;letter-spacing:.07em;color:var(--amber);text-align:center}
+#verifyBanner button{color:var(--ink);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit;margin-left:12px}
+.lb-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:var(--deep);border:1px solid var(--line);margin-bottom:4px;font-family:var(--mono)}
+.lb-row.me{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.3)}
+.lb-rank{width:28px;text-align:center;font-size:14px;flex:0 0 28px;color:var(--faint)}
+.lb-name{flex:1;font-size:13px;color:var(--ink)}
+.lb-xp{font-family:var(--disp);font-size:14px;font-weight:700;color:var(--amber)}
+.lb-solved{font-size:11px;color:var(--faint);margin-left:6px}
+.notcfg{margin-top:16px;padding:13px;border:1px dashed var(--line);border-radius:9px;font-size:13px;color:var(--faint);line-height:1.6}
+.notcfg code{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+/* ---- responsive ---- */
+#schemaToggle,#flightToggle{display:none}
+@media(max-width:1200px){
+  .layout{grid-template-columns:240px 1fr}
+  .schema{position:fixed;right:0;top:56px;bottom:0;width:300px;background:var(--deep);transform:translateX(100%);transition:transform .25s;z-index:40;border-left:1px solid var(--line)}
+  .schema.open{transform:none}
+  #schemaToggle{display:grid}
+}
+@media(max-width:860px){
+  body{overflow:auto}
+  #app{height:auto;min-height:100vh}
+  .layout{grid-template-columns:1fr}
+  .flight{position:fixed;left:0;top:56px;bottom:0;width:272px;background:var(--deep);transform:translateX(-100%);transition:transform .25s;z-index:40;border-right:1px solid var(--line)}
+  .flight.open{transform:none}
+  #flightToggle{display:grid}
+  .main{padding:18px 16px 90px}
+  .extitle{font-size:22px}
+  .xpwrap{display:none}
+  .topbar{gap:10px;padding:0 12px}
+}
+</style>
+</head>
+<body>
+<div id="stars" aria-hidden="true"></div>
+<div class="nebula nebula-a" aria-hidden="true"></div>
+<div class="nebula nebula-b" aria-hidden="true"></div>
+
+<div id="mcOverlay" aria-modal="true" aria-label="Module complete">
+  <div class="mc-box">
+    <div class="mc-planet" id="mcPlanet"></div>
+    <div class="mc-heading" id="mcHeading">MODULE COMPLETE</div>
+    <div class="mc-hint" id="mcHint">Plotting course to next sector…</div>
+  </div>
+</div>
+<div id="rankFlash" aria-hidden="true"></div>
+
+<!-- ---- verify banner ---- -->
+<div id="verifyBanner" role="alert">
+  📧 <b>Verify your email</b> to sync progress across devices.
+  <button onclick="resendVerification()">Resend email</button>
+  <button onclick="$('verifyBanner').style.display='none'" aria-label="Dismiss" style="margin-left:6px;text-decoration:none;opacity:.6">×</button>
+</div>
+
+<!-- ---- auth modal ---- -->
+<div class="overlay" id="authModal" role="dialog" aria-modal="true" aria-label="Sign in">
+  <div class="modal modal-wrap" style="max-width:400px">
+    <button class="modal-close" onclick="closeAuthModal()" aria-label="Close">×</button>
+    <h2>🚀 Join the Fleet</h2>
+    <p class="sub">Sync progress across devices &amp; compete on the leaderboard</p>
+    <div class="modal-tabs" id="authTabs">
+      <button class="modal-tab active" id="tabLogin" onclick="showAuthTab('login')">Sign In</button>
+      <button class="modal-tab" id="tabSignup" onclick="showAuthTab('signup')">Sign Up</button>
+    </div>
+    <div id="loginForm">
+      <input class="auth-input" type="email" id="loginEmail" placeholder="cosmonaut@fleet.space" autocomplete="email">
+      <input class="auth-input" type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+      <button class="btn primary" style="width:100%" onclick="doSignIn()">Launch →</button>
+      <div style="text-align:center;margin-top:12px">
+        <button style="background:none;border:none;color:var(--dim);font-size:13px;cursor:pointer;text-decoration:underline" onclick="doResetPassword()">Forgot password?</button>
+      </div>
+    </div>
+    <div id="signupForm" style="display:none">
+      <input class="auth-input" type="text" id="signupUsername" placeholder="Callsign (public name, e.g. StarPilot42)" autocomplete="username" maxlength="20">
+      <input class="auth-input" type="email" id="signupEmail" placeholder="cosmonaut@fleet.space" autocomplete="email">
+      <input class="auth-input" type="password" id="signupPass" placeholder="Password (min 6 characters)" autocomplete="new-password">
+      <button class="btn primary" style="width:100%" onclick="doSignUp()">Register →</button>
+    </div>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="notcfg" id="notConfigured" style="display:none">
+      Supabase is not configured. Set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of the script block to enable cloud sync &amp; leaderboard.
+    </div>
+  </div>
+</div>
+
+<!-- ---- leaderboard modal ---- -->
+<div class="overlay" id="lbModal" role="dialog" aria-modal="true" aria-label="Fleet leaderboard">
+  <div class="modal modal-wrap" style="max-width:520px">
+    <button class="modal-close" onclick="$('lbModal').classList.remove('show')" aria-label="Close">×</button>
+    <h2>🏆 Fleet Leaderboard</h2>
+    <p class="sub">Top cosmonauts ranked by mission XP earned</p>
+    <div id="lbList" style="margin-top:16px"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn ghost" onclick="$('lbModal').classList.remove('show')">Back to console</button>
+      <button class="btn ghost" onclick="loadLeaderboard()" style="margin-left:auto">↻ Refresh</button>
+    </div>
+  </div>
+</div>
+
+<div id="boot"><div><div class="ring"></div><p id="bootmsg">Initializing warp core…</p></div></div>
+
+<div id="app">
+  <header class="topbar">
+    <button id="flightToggle" class="iconbtn" aria-label="Open mission map">☰</button>
+    <div class="logo"><span class="q">S</span>STARQUERY <small>SQL ACADEMY</small></div>
+    <div class="spacer"></div>
+    <div class="streak" id="streak" title="Warp streak — consecutive correct answers">⚡ <span>0</span></div>
+    <div class="xpwrap">
+      <div class="tele" id="xptext">0 XP · NEXT RANK 75</div>
+      <div class="xpbar"><i id="xpfill"></i></div>
+    </div>
+    <button class="rankchip" id="rankbtn" title="Open flight log"><span class="dot"></span><b id="rankname">Cadet</b></button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="iconbtn" id="lbBtn" title="Fleet leaderboard" aria-label="Open leaderboard" style="font-size:16px">🏆</button>
+      <button class="btn ghost" id="loginBtn" style="font-size:12px;padding:6px 14px;letter-spacing:.05em">Sign In</button>
+      <div id="userChip" style="display:none"><span class="gdot"></span><span id="userLabel">cosmonaut</span></div>
+      <button class="btn ghost" id="logoutBtn" style="display:none;font-size:12px;padding:6px 12px">Sign Out</button>
+    </div>
+    <button id="schemaToggle" class="iconbtn" aria-label="Toggle database panel">⛁</button>
+  </header>
+
+  <div class="layout">
+    <nav class="flight" id="flight" aria-label="Mission map">
+      <h2>Flight path</h2>
+      <div class="path" id="path"></div>
+    </nav>
+
+    <main class="main" id="main">
+      <div class="crumb" id="crumb"></div>
+      <h1 class="extitle" id="extitle"></h1>
+      <p class="brief" id="exbrief"></p>
+      <div class="task" id="extask"></div>
+      <div class="chips" id="chips" aria-label="Exercises in this module"></div>
+
+      <section class="console" aria-label="SQL console">
+        <div class="chead"><span class="lamp"></span><span>Query console</span><span class="right">postgresql-compatible</span></div>
+        <textarea id="editor" spellcheck="false" placeholder="-- Type your SQL here, cosmonaut&#10;SELECT ..."></textarea>
+        <div class="cfoot">
+          <button class="btn primary" id="runbtn">▶ Run query <span class="kbd">Ctrl+↵</span></button>
+          <button class="btn ghost" id="hintbtn">Hint</button>
+          <button class="btn ghost" id="solbtn">Reveal solution</button>
+          <div style="flex:1"></div>
+          <button class="btn ghost" id="nextbtn" style="display:none">Next mission →</button>
+        </div>
+      </section>
+
+      <div class="verdict" id="verdict"><div><div class="vt" id="vtitle"></div><div class="vm" id="vmsg"></div></div></div>
+      <div class="hintbox" id="hintbox"></div>
+      <div class="solbox" id="solbox"></div>
+
+      <section class="results" id="results" style="display:none">
+        <h3 id="restitle">Telemetry · your result</h3>
+        <div class="tblwrap" id="restbl"></div>
+        <div class="rowcount" id="rowcount"></div>
+      </section>
+    </main>
+
+    <aside class="schema" id="schema" aria-label="Database schema">
+      <h2>Fleet database</h2>
+      <div id="tables"></div>
+      <div class="dialect"><b>Engine note:</b> queries run instantly in your browser. Every exercise uses ANSI SQL that runs unchanged on PostgreSQL.</div>
+    </aside>
+  </div>
+</div>
+
+<div class="overlay" id="statsOverlay" role="dialog" aria-label="Flight log">
+  <div class="modal">
+    <h2 id="statRank">Flight log</h2>
+    <p class="sub" id="statSub"></p>
+    <div class="statgrid">
+      <div class="stat"><div class="v" id="sXP">0</div><div class="l">Total XP</div></div>
+      <div class="stat"><div class="v" id="sSolved">0/0</div><div class="l">Missions solved</div></div>
+      <div class="stat"><div class="v" id="sAcc">—</div><div class="l">Accuracy</div></div>
+      <div class="stat"><div class="v" id="sStreak">0</div><div class="l">Best streak</div></div>
+    </div>
+    <div id="modbars"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn primary" id="closeStats">Back to the console</button>
+      <button class="btn ghost" id="resetBtn" title="Erase all progress">Reset progress</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+/* ================= FLEET DATABASE ================= */
+const INIT_SQL = `
+CREATE TABLE planets (
+  planet_id INTEGER PRIMARY KEY, name TEXT NOT NULL, system TEXT NOT NULL,
+  type TEXT NOT NULL, distance_ly REAL NOT NULL, habitable INTEGER NOT NULL, discovered_year INTEGER);
+INSERT INTO planets VALUES
+ (1,'Kepra','Vela Prime','Terrestrial',4.2,1,2089),
+ (2,'Tundrax','Vela Prime','Ice Giant',4.9,0,2090),
+ (3,'Auriga IV','Auriga','Gas Giant',38.0,0,2094),
+ (4,'Nova Tashkent','Samarqand','Terrestrial',12.7,1,2091),
+ (5,'Registan','Samarqand','Desert',13.1,0,2091),
+ (6,'Bukhara Minor','Samarqand','Terrestrial',13.4,1,NULL),
+ (7,'Cryon','Boreal Reach','Ice Giant',51.5,0,2097),
+ (8,'Pyralis','Boreal Reach','Volcanic',49.8,0,2096),
+ (9,'Veridia','Auriga','Terrestrial',36.2,1,2095),
+ (10,'Zerafshan','Samarqand','Ocean',14.0,1,2093),
+ (11,'Obsidian','Vela Prime','Volcanic',5.6,0,NULL),
+ (12,'Maral','Boreal Reach','Ocean',50.2,1,2098),
+ (13,'Quasar Holt','Auriga','Gas Giant',40.1,0,2099),
+ (14,'Heliodor','Vela Prime','Desert',6.3,0,2092);
+
+CREATE TABLE crew (
+  crew_id INTEGER PRIMARY KEY, name TEXT NOT NULL, rank TEXT NOT NULL,
+  specialty TEXT NOT NULL, home_planet_id INTEGER, salary INTEGER NOT NULL, joined_date TEXT NOT NULL);
+INSERT INTO crew VALUES
+ (1,'Aziza Karimova','Captain','Navigation',4,9200,'2090-03-12'),
+ (2,'Timur Rashidov','Commander','Engineering',1,8100,'2091-07-01'),
+ (3,'Yulduz Saidova','Lieutenant','Science',9,6400,'2093-02-18'),
+ (4,'Jasur Olimov','Lieutenant','Engineering',5,6550,'2092-11-05'),
+ (5,'Nilufar Abdullaeva','Commander','Science',4,8300,'2090-09-23'),
+ (6,'Sherzod Yusupov','Ensign','Communications',6,4900,'2095-01-14'),
+ (7,'Madina Tosheva','Captain','Science',10,9450,'2089-06-30'),
+ (8,'Rustam Nazarov','Ensign','Navigation',NULL,4700,'2095-08-02'),
+ (9,'Gulnora Mirzaeva','Lieutenant','Medicine',1,6800,'2092-04-19'),
+ (10,'Farhod Berdiyev','Commander','Navigation',12,7900,'2091-12-08'),
+ (11,'Sevara Khamidova','Ensign','Science',9,5100,'2096-03-27'),
+ (12,'Bobur Ergashev','Lieutenant','Communications',4,6300,'2093-10-11'),
+ (13,'Zilola Rakhimova','Captain','Engineering',10,9700,'2088-05-16'),
+ (14,'Otabek Sultonov','Ensign','Engineering',6,4850,'2096-07-09'),
+ (15,'Dilnoza Yuldasheva','Lieutenant','Navigation',1,6600,'2094-01-22'),
+ (16,'Sardor Kamolov','Commander','Medicine',9,8000,'2090-11-30');
+
+CREATE TABLE ships (
+  ship_id INTEGER PRIMARY KEY, name TEXT NOT NULL, class TEXT NOT NULL,
+  crew_capacity INTEGER NOT NULL, commissioned_year INTEGER NOT NULL);
+INSERT INTO ships VALUES
+ (1,'UZS Humo','Explorer',24,2090),
+ (2,'UZS Ulugbek','Research',16,2092),
+ (3,'UZS Samarqand','Freighter',40,2089),
+ (4,'UZS Lochin','Interceptor',8,2094),
+ (5,'UZS Navoiy','Research',18,2095),
+ (6,'UZS Amudaryo','Freighter',36,2091);
+
+CREATE TABLE missions (
+  mission_id INTEGER PRIMARY KEY, codename TEXT NOT NULL, ship_id INTEGER NOT NULL,
+  destination_id INTEGER NOT NULL, commander_id INTEGER NOT NULL,
+  launch_date TEXT NOT NULL, status TEXT NOT NULL, budget INTEGER NOT NULL);
+INSERT INTO missions VALUES
+ (1,'Silk Road',3,4,1,'2094-02-10','Completed',180000),
+ (2,'Falcon Dive',4,1,10,'2094-09-05','Completed',95000),
+ (3,'Star Atlas',2,9,7,'2095-03-22','Completed',210000),
+ (4,'Deep Current',5,10,5,'2095-11-08','Completed',175000),
+ (5,'Ember Watch',4,8,10,'2096-01-19','Aborted',88000),
+ (6,'Blue Meridian',1,12,1,'2096-06-30','Completed',240000),
+ (7,'Crystal Veil',2,7,7,'2096-10-14','Active',198000),
+ (8,'Long Caravan',3,6,13,'2097-01-25','Active',260000),
+ (9,'Aurora Gate',1,13,1,'2097-04-03','Active',285000),
+ (10,'Quiet Orbit',5,2,5,'2097-08-21','Planned',120000),
+ (11,'Second Dawn',4,14,10,'2097-12-02','Planned',99000),
+ (12,'High Registan',3,5,13,'2098-03-15','Planned',230000);
+
+CREATE TABLE mission_crew (mission_id INTEGER NOT NULL, crew_id INTEGER NOT NULL, role TEXT NOT NULL);
+INSERT INTO mission_crew VALUES
+ (1,2,'Engineer'),(1,15,'Pilot'),(1,9,'Medic'),(1,6,'Comms'),
+ (2,8,'Pilot'),(2,3,'Science Officer'),
+ (3,12,'Comms'),(3,9,'Medic'),(3,2,'Engineer'),
+ (4,3,'Science Officer'),(4,16,'Medic'),(4,15,'Pilot'),
+ (5,8,'Pilot'),(5,4,'Engineer'),
+ (6,15,'Pilot'),(6,5,'Science Officer'),(6,9,'Medic'),(6,12,'Comms'),
+ (7,3,'Science Officer'),(7,4,'Engineer'),(7,6,'Comms'),
+ (8,2,'Engineer'),(8,16,'Medic'),(8,8,'Pilot'),
+ (9,15,'Pilot'),(9,5,'Science Officer'),(9,12,'Comms'),(9,16,'Medic'),
+ (10,4,'Engineer'),(10,3,'Science Officer'),
+ (11,8,'Pilot'),
+ (12,2,'Engineer'),(12,9,'Medic');
+
+CREATE TABLE supplies (supply_id INTEGER PRIMARY KEY, mission_id INTEGER NOT NULL,
+  item TEXT NOT NULL, quantity INTEGER NOT NULL, unit_cost REAL NOT NULL);
+INSERT INTO supplies VALUES
+ (1,1,'Ration Pack',400,12.5),(2,1,'Fuel Rod',60,310),(3,1,'Water Tank',25,95),
+ (4,2,'Fuel Rod',20,310),(5,2,'Med Kit',10,82),
+ (6,3,'Sensor Array',6,1250),(7,3,'Ration Pack',220,12.5),(8,3,'Oxygen Cell',300,18),
+ (9,4,'Water Tank',40,95),(10,4,'Med Kit',18,82),
+ (11,6,'Fuel Rod',90,310),(12,6,'Ration Pack',520,12.5),(13,6,'Repair Drone',4,2200),
+ (14,7,'Sensor Array',8,1250),(15,7,'Oxygen Cell',260,18),
+ (16,8,'Ration Pack',640,12.5),(17,8,'Fuel Rod',120,310),(18,8,'Repair Drone',6,2200),
+ (19,9,'Oxygen Cell',410,18),(20,9,'Sensor Array',10,1250),(21,9,'Med Kit',24,82);
+`;
+
+const SCHEMA = [
+ {t:'planets', cols:[['planet_id','int'],['name','text'],['system','text'],['type','text'],['distance_ly','real'],['habitable','bool'],['discovered_year','int']]},
+ {t:'crew', cols:[['crew_id','int'],['name','text'],['rank','text'],['specialty','text'],['home_planet_id','int'],['salary','int'],['joined_date','date']]},
+ {t:'ships', cols:[['ship_id','int'],['name','text'],['class','text'],['crew_capacity','int'],['commissioned_year','int']]},
+ {t:'missions', cols:[['mission_id','int'],['codename','text'],['ship_id','int'],['destination_id','int'],['commander_id','int'],['launch_date','date'],['status','text'],['budget','int']]},
+ {t:'mission_crew', cols:[['mission_id','int'],['crew_id','int'],['role','text']]},
+ {t:'supplies', cols:[['supply_id','int'],['mission_id','int'],['item','text'],['quantity','int'],['unit_cost','real']]}
+];
+
+/* ================= CURRICULUM ================= */
+const MODULES = [
+ {id:1, name:'Launch Pad', sub:'SELECT essentials'},
+ {id:2, name:'Navigation', sub:'Filtering with WHERE'},
+ {id:3, name:'Flight Control', sub:'Sorting & limits'},
+ {id:4, name:'Telemetry', sub:'Aggregation & GROUP BY'},
+ {id:5, name:'Docking', sub:'Joins'},
+ {id:6, name:'Deep Space', sub:'Subqueries & CTEs'},
+ {id:7, name:'Warp Drive', sub:'Window functions'},
+ {id:8, name:'Nebula Challenges', sub:'Expert SQL missions'},
+ {id:9, name:'Free Flight', sub:'Open sandbox', free:true}
+];
+
+const EX = [
+ {id:1,mod:1,xp:10,title:'Power up the console',
+  brief:'Welcome aboard, cosmonaut. Mission control needs eyes on the full planetary registry before anything launches.',
+  task:'Show <b>every column</b> for all rows in the <code>planets</code> table.',
+  hint:'The star symbol * means "all columns". The pattern is SELECT columns FROM table.',
+  sol:'SELECT * FROM planets;'},
+ {id:2,mod:1,xp:10,title:'Two readouts only',
+  brief:'The main screen is cluttered. The flight director wants a clean display.',
+  task:'Select only the <code>name</code> and <code>type</code> of every planet.',
+  hint:'List the column names after SELECT, separated by a comma.',
+  sol:'SELECT name, type FROM planets;'},
+ {id:3,mod:1,xp:10,title:'Chart the systems',
+  brief:'Several planets share a star system, but the star chart should list each system once.',
+  task:'List each <b>distinct</b> <code>system</code> that appears in <code>planets</code>.',
+  hint:'DISTINCT goes right after SELECT and removes duplicate values.',
+  sol:'SELECT DISTINCT system FROM planets;'},
+ {id:4,mod:1,xp:10,ordered:true,title:'First five contacts',
+  brief:'Bandwidth to the relay station is limited — transmit only the first records.',
+  task:'Return all columns for the first <b>5</b> planets ordered by <code>planet_id</code>.',
+  hint:'Combine ORDER BY planet_id with LIMIT 5.',
+  sol:'SELECT * FROM planets ORDER BY planet_id LIMIT 5;'},
+ {id:5,mod:1,xp:10,checkNames:true,title:'Call sign alias',
+  brief:'The comms team uses their own labels on the dashboard.',
+  task:'Select every planet\u2019s <code>name</code> renamed to <code>call_sign</code> and <code>distance_ly</code> renamed to <code>light_years</code>. <b>Column names are checked</b> on this one.',
+  hint:'Use AS to rename a column: column AS new_name.',
+  sol:'SELECT name AS call_sign, distance_ly AS light_years FROM planets;'},
+
+ {id:6,mod:2,xp:15,title:'Gas giant survey',
+  brief:'The fuel-scoop team only cares about one kind of world.',
+  task:'Return the <code>name</code> of every planet whose <code>type</code> is <code>\u0027Gas Giant\u0027</code>.',
+  hint:'Text values need single quotes: WHERE type = \u0027Gas Giant\u0027.',
+  sol:"SELECT name FROM planets WHERE type = 'Gas Giant';"},
+ {id:7,mod:2,xp:15,title:'Close to home',
+  brief:'Short-range shuttles can only reach nearby worlds.',
+  task:'Return <code>name</code> and <code>distance_ly</code> of planets <b>closer than 10</b> light years.',
+  hint:'Use the < comparison operator in the WHERE clause.',
+  sol:'SELECT name, distance_ly FROM planets WHERE distance_ly < 10;'},
+ {id:8,mod:2,xp:15,title:'Settler shortlist',
+  brief:'Colonization command wants worlds that are both livable and reachable.',
+  task:'Return the <code>name</code> of planets that are <b>habitable</b> AND closer than <b>20</b> light years.',
+  hint:'Combine two conditions with AND. The habitable column is boolean: habitable = TRUE.',
+  sol:'SELECT name FROM planets WHERE habitable = TRUE AND distance_ly < 20;'},
+ {id:9,mod:2,xp:15,title:'Window of discovery',
+  brief:'The archive team is auditing the golden era of exploration.',
+  task:'Return <code>name</code> and <code>discovered_year</code> of planets discovered <b>between 2090 and 2094</b> (inclusive).',
+  hint:'BETWEEN low AND high includes both endpoints.',
+  sol:'SELECT name, discovered_year FROM planets WHERE discovered_year BETWEEN 2090 AND 2094;'},
+ {id:10,mod:2,xp:15,title:'Starts with a signal',
+  brief:'A garbled transmission came from a crew member whose name begins with S.',
+  task:'Return the <code>name</code> of every crew member whose name <b>starts with the letter S</b>.',
+  hint:'LIKE with % matches any characters: LIKE \u0027S%\u0027.',
+  sol:"SELECT name FROM crew WHERE name LIKE 'S%';"},
+ {id:11,mod:2,xp:15,title:'Allied systems',
+  brief:'A trade treaty covers exactly two star systems.',
+  task:'Return <code>name</code> and <code>system</code> of planets located in the <code>Samarqand</code> or <code>Auriga</code> systems, using <code>IN</code>.',
+  hint:"IN takes a list: system IN ('Samarqand', 'Auriga').",
+  sol:"SELECT name, system FROM planets WHERE system IN ('Samarqand','Auriga');"},
+ {id:12,mod:2,xp:15,title:'Lost records',
+  brief:'Some discovery logs were corrupted in a solar storm — their year is unknown.',
+  task:'Return the <code>name</code> of planets whose <code>discovered_year</code> is <b>missing (NULL)</b>.',
+  hint:'NULL is special — use IS NULL, never = NULL.',
+  sol:'SELECT name FROM planets WHERE discovered_year IS NULL;'},
+
+ {id:13,mod:3,xp:15,ordered:true,title:'Nearest first',
+  brief:'Plot the jump route starting with the closest world.',
+  task:'Return <code>name</code> and <code>distance_ly</code> of all planets ordered by <b>distance, nearest first</b>.',
+  hint:'ORDER BY column ASC (ascending is the default).',
+  sol:'SELECT name, distance_ly FROM planets ORDER BY distance_ly;'},
+ {id:14,mod:3,xp:15,ordered:true,title:'Payroll review',
+  brief:'The fleet accountant wants the salary sheet, biggest numbers on top.',
+  task:'Return <code>name</code> and <code>salary</code> of all crew, ordered by salary from <b>highest to lowest</b>.',
+  hint:'DESC reverses the sort order.',
+  sol:'SELECT name, salary FROM crew ORDER BY salary DESC;'},
+ {id:15,mod:3,xp:15,ordered:true,title:'Top three budgets',
+  brief:'The senate is asking where the money goes.',
+  task:'Return <code>codename</code> and <code>budget</code> of the <b>3 most expensive</b> missions.',
+  hint:'Sort by budget DESC, then take only 3 rows with LIMIT.',
+  sol:'SELECT codename, budget FROM missions ORDER BY budget DESC LIMIT 3;'},
+ {id:16,mod:3,xp:15,ordered:true,title:'Second page',
+  brief:'The registry screen shows 5 planets per page. Render page two.',
+  task:'Return planet <code>name</code>s in alphabetical order, <b>skipping the first 5</b> and showing the <b>next 5</b>.',
+  hint:'LIMIT 5 OFFSET 5 skips a page.',
+  sol:'SELECT name FROM planets ORDER BY name LIMIT 5 OFFSET 5;'},
+
+ {id:17,mod:4,xp:20,title:'Headcount',
+  brief:'Life support needs the exact number of people on the roster.',
+  task:'Return the <b>total number</b> of crew members as a single value.',
+  hint:'COUNT(*) counts rows.',
+  sol:'SELECT COUNT(*) FROM crew;'},
+ {id:18,mod:4,xp:20,title:'Average pay',
+  brief:'HR is benchmarking fleet salaries against the orbital shipyards.',
+  task:'Return the <b>average</b> crew <code>salary</code>.',
+  hint:'AVG(column) computes the mean.',
+  sol:'SELECT AVG(salary) FROM crew;'},
+ {id:19,mod:4,xp:20,title:'Extremes of the map',
+  brief:'How far does the charted galaxy stretch?',
+  task:'Return the <b>minimum</b> and <b>maximum</b> <code>distance_ly</code> from <code>planets</code> in one row.',
+  hint:'You can put MIN(...) and MAX(...) side by side in one SELECT.',
+  sol:'SELECT MIN(distance_ly), MAX(distance_ly) FROM planets;'},
+ {id:20,mod:4,xp:20,title:'Ranks muster',
+  brief:'The admiral wants to know the shape of the chain of command.',
+  task:'Return each <code>rank</code> and <b>how many crew</b> hold it.',
+  hint:'GROUP BY rank, then COUNT(*) per group.',
+  sol:'SELECT rank, COUNT(*) FROM crew GROUP BY rank;'},
+ {id:21,mod:4,xp:20,title:'Budget by status',
+  brief:'Finance splits spending by mission state: completed, active, planned, aborted.',
+  task:'Return each mission <code>status</code> and the <b>total budget</b> for that status.',
+  hint:'SUM(budget) with GROUP BY status.',
+  sol:'SELECT status, SUM(budget) FROM missions GROUP BY status;'},
+ {id:22,mod:4,xp:20,title:'Crowded specialties',
+  brief:'Some departments are overstaffed; the rest run on coffee.',
+  task:'Return each <code>specialty</code> and its crew count, but only specialties with <b>more than 3</b> people.',
+  hint:'Filters on aggregated values use HAVING, not WHERE.',
+  sol:'SELECT specialty, COUNT(*) FROM crew GROUP BY specialty HAVING COUNT(*) > 3;'},
+ {id:23,mod:4,xp:20,title:'Distinct destinations',
+  brief:'How many different worlds has the fleet actually aimed for?',
+  task:'Return the number of <b>distinct</b> <code>destination_id</code> values in <code>missions</code> as a single value.',
+  hint:'COUNT(DISTINCT column) counts unique values.',
+  sol:'SELECT COUNT(DISTINCT destination_id) FROM missions;'},
+
+ {id:24,mod:5,xp:25,title:'Where are we headed',
+  brief:'Mission codenames are cryptic. Put real planet names next to them.',
+  task:'Return each mission <code>codename</code> with its <b>destination planet\u2019s name</b>.',
+  hint:'JOIN planets ON missions.destination_id = planets.planet_id.',
+  sol:'SELECT m.codename, p.name FROM missions m JOIN planets p ON m.destination_id = p.planet_id;'},
+ {id:25,mod:5,xp:25,title:'Home worlds',
+  brief:'The crew directory should show where everyone is from.',
+  task:'Return each crew member\u2019s <code>name</code> with the <b>name of their home planet</b> (skip crew with no recorded home world).',
+  hint:'An INNER JOIN automatically drops rows where home_planet_id is NULL.',
+  sol:'SELECT c.name, p.name FROM crew c JOIN planets p ON c.home_planet_id = p.planet_id;'},
+ {id:26,mod:5,xp:25,title:'Full flight plan',
+  brief:'One screen: which ship is flying which mission to which world.',
+  task:'Return mission <code>codename</code>, the <b>ship\u2019s name</b>, and the <b>destination planet\u2019s name</b>.',
+  hint:'Chain two JOINs: missions \u2192 ships, then missions \u2192 planets.',
+  sol:'SELECT m.codename, s.name, p.name FROM missions m JOIN ships s ON m.ship_id = s.ship_id JOIN planets p ON m.destination_id = p.planet_id;'},
+ {id:27,mod:5,xp:25,title:'Untouched worlds',
+  brief:'Somewhere out there are planets no mission has ever targeted.',
+  task:'Return the <code>name</code> of planets that have <b>never been a mission destination</b>.',
+  hint:'LEFT JOIN missions onto planets, then keep rows WHERE missions.mission_id IS NULL.',
+  sol:'SELECT p.name FROM planets p LEFT JOIN missions m ON m.destination_id = p.planet_id WHERE m.mission_id IS NULL;'},
+ {id:28,mod:5,xp:25,title:'Chain of command',
+  brief:'Every mission answers to one officer.',
+  task:'Return each mission <code>codename</code> with its <b>commander\u2019s name</b>.',
+  hint:'missions.commander_id points to crew.crew_id.',
+  sol:'SELECT m.codename, c.name FROM missions m JOIN crew c ON m.commander_id = c.crew_id;'},
+ {id:29,mod:5,xp:25,title:'Crew manifest size',
+  brief:'Quartermaster needs headcounts to pack the right number of ration packs.',
+  task:'Return each mission <code>codename</code> with the <b>number of crew assigned</b> to it in <code>mission_crew</code>.',
+  hint:'JOIN mission_crew, GROUP BY the codename, COUNT the rows.',
+  sol:'SELECT m.codename, COUNT(*) FROM missions m JOIN mission_crew mc ON m.mission_id = mc.mission_id GROUP BY m.codename;'},
+
+ {id:30,mod:6,xp:30,title:'Above the average',
+  brief:'Who out-earns the fleet\u2019s own mean salary?',
+  task:'Return <code>name</code> and <code>salary</code> of crew whose salary is <b>greater than the average</b> salary.',
+  hint:'Put SELECT AVG(salary) FROM crew inside the WHERE clause as a subquery.',
+  sol:'SELECT name, salary FROM crew WHERE salary > (SELECT AVG(salary) FROM crew);'},
+ {id:31,mod:6,xp:30,title:'Active frontiers',
+  brief:'Which worlds have a fleet ship en route right now?',
+  task:'Return the <code>name</code> of planets that are destinations of missions with status <code>\u0027Active\u0027</code>, using a <b>subquery with IN</b>.',
+  hint:"WHERE planet_id IN (SELECT destination_id FROM missions WHERE status = 'Active').",
+  sol:"SELECT name FROM planets WHERE planet_id IN (SELECT destination_id FROM missions WHERE status = 'Active');"},
+ {id:32,mod:6,xp:30,title:'Supply bill',
+  brief:'Auditors flagged missions with heavy cargo invoices.',
+  task:'Using a <b>CTE</b>, compute each mission\u2019s total supply cost (<code>quantity * unit_cost</code> summed), then return <code>codename</code> and that total for missions where it exceeds <b>20000</b>.',
+  hint:'WITH totals AS (SELECT mission_id, SUM(quantity*unit_cost) AS cost FROM supplies GROUP BY mission_id) ... then JOIN missions and filter.',
+  sol:'WITH totals AS (SELECT mission_id, SUM(quantity * unit_cost) AS total_cost FROM supplies GROUP BY mission_id) SELECT m.codename, t.total_cost FROM missions m JOIN totals t ON m.mission_id = t.mission_id WHERE t.total_cost > 20000;'},
+ {id:33,mod:6,xp:30,title:'Ghost roster',
+  brief:'Personnel found people who have somehow never flown — never on a roster, never in command.',
+  task:'Return the <code>name</code> of crew who appear in <b>no</b> <code>mission_crew</code> row AND have <b>never commanded</b> a mission.',
+  hint:'Two NOT IN subqueries: one against mission_crew.crew_id, one against missions.commander_id.',
+  sol:'SELECT name FROM crew WHERE crew_id NOT IN (SELECT crew_id FROM mission_crew) AND crew_id NOT IN (SELECT commander_id FROM missions);'},
+
+ {id:34,mod:7,xp:35,ordered:true,title:'Salary rank',
+  brief:'Within each specialty, who earns the most?',
+  task:'Return <code>name</code>, <code>specialty</code>, <code>salary</code>, and a <code>RANK()</code> of salary (highest = 1) <b>within each specialty</b>. Order the output by specialty, then rank.',
+  hint:'RANK() OVER (PARTITION BY specialty ORDER BY salary DESC).',
+  sol:'SELECT name, specialty, salary, RANK() OVER (PARTITION BY specialty ORDER BY salary DESC) AS r FROM crew ORDER BY specialty, r;'},
+ {id:35,mod:7,xp:35,ordered:true,title:'Mission countdown',
+  brief:'Number the missions from newest to oldest.',
+  task:'Return <code>codename</code>, <code>launch_date</code>, and a <code>ROW_NUMBER()</code> where the <b>most recent launch is 1</b>. Order by that number.',
+  hint:'ROW_NUMBER() OVER (ORDER BY launch_date DESC).',
+  sol:'SELECT codename, launch_date, ROW_NUMBER() OVER (ORDER BY launch_date DESC) AS n FROM missions ORDER BY n;'},
+ {id:36,mod:7,xp:35,ordered:true,title:'Running spend',
+  brief:'Finance wants the cumulative burn of the whole program over time.',
+  task:'Return <code>codename</code>, <code>launch_date</code>, and the <b>running total</b> of <code>budget</code> ordered by launch date.',
+  hint:'SUM(budget) OVER (ORDER BY launch_date) gives a cumulative sum.',
+  sol:'SELECT codename, launch_date, SUM(budget) OVER (ORDER BY launch_date) AS running_budget FROM missions ORDER BY launch_date;'},
+ {id:37,mod:7,xp:35,ordered:true,title:'Budget delta',
+  brief:'Did each mission cost more or less than the one before it?',
+  task:'Return <code>codename</code>, <code>budget</code>, and the <b>difference from the previous mission\u2019s budget</b> by launch date (the first mission\u2019s difference is NULL). Order by launch date.',
+  hint:'budget - LAG(budget) OVER (ORDER BY launch_date).',
+  sol:'SELECT codename, budget, budget - LAG(budget) OVER (ORDER BY launch_date) AS delta FROM missions ORDER BY launch_date;'},
+
+/* --- Module 1 advanced --- */
+ {id:38,mod:1,xp:15,title:'Colony or barren?',
+  brief:'Settlement planning needs a human-readable label on every planet record.',
+  task:'Return each planet\u2019s <code>name</code> and a computed column called <code>status</code>: show <b>Colony</b> when <code>habitable</code> is 1, otherwise <b>Barren</b>. Use <code>CASE WHEN</code>.',
+  hint:"CASE WHEN habitable = 1 THEN 'Colony' ELSE 'Barren' END AS status.",
+  sol:"SELECT name, CASE WHEN habitable = 1 THEN 'Colony' ELSE 'Barren' END AS status FROM planets;"},
+ {id:39,mod:1,xp:15,checkNames:true,title:'Line item total',
+  brief:'Procurement wants a single column showing the total cost for each supply line.',
+  task:'Return <code>item</code> and a computed <code>total_value</code> (quantity \u00d7 unit_cost) from <code>supplies</code>. <b>Column name is checked.</b>',
+  hint:'Multiply columns with * and rename with AS: quantity * unit_cost AS total_value.',
+  sol:'SELECT item, quantity * unit_cost AS total_value FROM supplies;'},
+ {id:40,mod:1,xp:15,title:'Specialization list',
+  brief:'HR is printing wallet cards for each profession in the fleet.',
+  task:'List each <b>distinct</b> <code>specialty</code> that exists in the <code>crew</code> table.',
+  hint:'SELECT DISTINCT specialty \u2014 duplicates are removed automatically.',
+  sol:'SELECT DISTINCT specialty FROM crew;'},
+
+/* --- Module 2 advanced --- */
+ {id:41,mod:2,xp:15,title:'Date unknown',
+  brief:'Several planets have no discovery record on file \u2014 the logs were lost.',
+  task:'Return the <code>name</code> of planets whose <code>discovered_year</code> is <b>not NULL</b>.',
+  hint:'IS NOT NULL is the opposite of IS NULL.',
+  sol:'SELECT name FROM planets WHERE discovered_year IS NOT NULL;'},
+ {id:42,mod:2,xp:20,title:'Mid-range salaries',
+  brief:'Finance is auditing the pay band between junior officers and senior commanders.',
+  task:'Return <code>name</code> and <code>salary</code> of crew whose salary is <b>between 6000 and 8000</b> (inclusive). Use <code>BETWEEN</code>.',
+  hint:'BETWEEN low AND high \u2014 both endpoints are included.',
+  sol:'SELECT name, salary FROM crew WHERE salary BETWEEN 6000 AND 8000;'},
+ {id:43,mod:2,xp:20,title:'Science squad',
+  brief:'An evacuation drill only applies to crew with specialties starting with S.',
+  task:'Return <code>name</code> and <code>specialty</code> of crew whose specialty <b>begins with the letter S</b>. Use <code>LIKE</code>.',
+  hint:"LIKE 'S%' matches any string starting with S.",
+  sol:"SELECT name, specialty FROM crew WHERE specialty LIKE 'S%';"},
+ {id:44,mod:2,xp:20,title:'Treaty worlds excluded',
+  brief:'Vela Prime and Boreal Reach are under a navigation restriction \u2014 skip them.',
+  task:'Return <code>name</code> and <code>system</code> of planets <b>not in</b> the <code>Vela Prime</code> or <code>Boreal Reach</code> systems. Use <code>NOT IN</code>.',
+  hint:"NOT IN ('Vela Prime','Boreal Reach').",
+  sol:"SELECT name, system FROM planets WHERE system NOT IN ('Vela Prime','Boreal Reach');"},
+
+/* --- Module 3 advanced --- */
+ {id:45,mod:3,xp:20,ordered:true,title:'Roster by specialty then pay',
+  brief:'The admiral\u2019s briefing lists crew alphabetically by department, then highest earners first within each.',
+  task:'Return <code>name</code>, <code>specialty</code>, and <code>salary</code> ordered by <code>specialty</code> ascending, then <code>salary</code> descending.',
+  hint:'ORDER BY specialty ASC, salary DESC \u2014 comma-separate multiple sort keys.',
+  sol:'SELECT name, specialty, salary FROM crew ORDER BY specialty ASC, salary DESC;'},
+ {id:46,mod:3,xp:20,ordered:true,title:'Unknown years last',
+  brief:'The star chart should show known discovery years first, pushing NULL values to the bottom.',
+  task:'Return <code>name</code> and <code>discovered_year</code> for all planets, sorted by year ascending with <b>NULLs last</b>. Use <code>COALESCE</code> to push them down.',
+  hint:'ORDER BY COALESCE(discovered_year, 9999) puts NULLs at the end.',
+  sol:'SELECT name, discovered_year FROM planets ORDER BY COALESCE(discovered_year, 9999);'},
+
+/* --- Module 4 advanced --- */
+ {id:47,mod:4,xp:25,title:'Repeat destinations',
+  brief:'Mission planners want to know which planets are popular enough to have multiple missions aimed at them.',
+  task:'Return <code>destination_id</code> and a <code>mission_count</code> for destinations targeted by <b>more than one mission</b>. Use <code>HAVING</code>.',
+  hint:'GROUP BY destination_id, then HAVING COUNT(*) > 1.',
+  sol:'SELECT destination_id, COUNT(*) AS mission_count FROM missions GROUP BY destination_id HAVING COUNT(*) > 1;'},
+ {id:48,mod:4,xp:25,title:'Grade by department',
+  brief:'The personnel file organises headcounts by both specialty and rank together.',
+  task:'Return <code>specialty</code>, <code>rank</code>, and the count of crew for every combination. Order by specialty, then rank.',
+  hint:'GROUP BY two columns: specialty, rank.',
+  sol:'SELECT specialty, rank, COUNT(*) AS crew_count FROM crew GROUP BY specialty, rank ORDER BY specialty, rank;'},
+ {id:49,mod:4,xp:25,title:'Senior vs junior',
+  brief:'Fleet HR splits the payroll into two pay tiers for budget reporting.',
+  task:'Return a tier label (<b>Senior</b> for salary \u2265 8000, otherwise <b>Junior</b>) and the crew count for each tier.',
+  hint:'Use CASE WHEN inside both SELECT and GROUP BY: GROUP BY CASE WHEN salary >= 8000 THEN ... END.',
+  sol:"SELECT CASE WHEN salary >= 8000 THEN 'Senior' ELSE 'Junior' END AS tier, COUNT(*) AS crew_count FROM crew GROUP BY CASE WHEN salary >= 8000 THEN 'Senior' ELSE 'Junior' END;"},
+
+/* --- Module 5 advanced --- */
+ {id:50,mod:5,xp:30,title:'Full crew manifest',
+  brief:'Mission control wants one row per crewed mission showing the codename, ship class, and commander.',
+  task:'Return mission <code>codename</code>, <code>ship class</code>, and commander\u2019s <code>name</code> for every mission. Use two JOINs.',
+  hint:'JOIN ships ON ship_id, then JOIN crew ON commander_id = crew_id.',
+  sol:'SELECT m.codename, s.class, c.name AS commander FROM missions m JOIN ships s ON m.ship_id = s.ship_id JOIN crew c ON m.commander_id = c.crew_id;'},
+ {id:51,mod:5,xp:30,title:'Colleagues from home',
+  brief:'Aziza Karimova wants to know which other crew members share her home planet.',
+  task:'Return the <code>name</code> of crew who share the same <code>home_planet_id</code> as <b>Aziza Karimova</b>, excluding herself. Use a self-join on <code>crew</code>.',
+  hint:'JOIN crew c2 ON c1.home_planet_id = c2.home_planet_id WHERE c1.name = ... AND c2.name != ...',
+  sol:"SELECT c2.name FROM crew c1 JOIN crew c2 ON c1.home_planet_id = c2.home_planet_id WHERE c1.name = 'Aziza Karimova' AND c2.name != 'Aziza Karimova';"},
+ {id:52,mod:5,xp:30,title:'Ships on standby',
+  brief:'Which ships currently have no active missions? They may be available for reassignment.',
+  task:'Return the <code>name</code> of ships that have <b>no mission with status Active</b>. Use <code>LEFT JOIN</code> and filter for NULLs.',
+  hint:"LEFT JOIN missions ON ship_id AND status = 'Active', then WHERE mission_id IS NULL.",
+  sol:"SELECT s.name FROM ships s LEFT JOIN missions m ON s.ship_id = m.ship_id AND m.status = 'Active' WHERE m.mission_id IS NULL;"},
+ {id:53,mod:5,xp:30,title:'Budget by ship class',
+  brief:'The senate wants total spending broken down by the type of vessel used.',
+  task:'Return each ship <code>class</code> and the <b>total budget</b> of missions it has flown, ordered by total budget descending.',
+  hint:'JOIN ships to missions on ship_id, then GROUP BY class.',
+  sol:'SELECT s.class, SUM(m.budget) AS total_budget FROM ships s JOIN missions m ON s.ship_id = m.ship_id GROUP BY s.class ORDER BY total_budget DESC;'},
+
+/* --- Module 6 advanced --- */
+ {id:54,mod:6,xp:35,title:'Missions with cargo',
+  brief:'Only some missions have supply records. Use EXISTS to find them without a JOIN.',
+  task:'Return the <code>codename</code> of missions that have <b>at least one supply entry</b>. Use <code>EXISTS</code>.',
+  hint:'WHERE EXISTS (SELECT 1 FROM supplies s WHERE s.mission_id = m.mission_id).',
+  sol:'SELECT codename FROM missions m WHERE EXISTS (SELECT 1 FROM supplies s WHERE s.mission_id = m.mission_id);'},
+ {id:55,mod:6,xp:35,title:'Chained CTEs',
+  brief:'Find the single most-funded mission and then look up what system its destination is in.',
+  task:'Write two CTEs: one that selects the <b>top-budget mission</b>, and another that joins it to <code>planets</code>. Return <code>codename</code>, <code>budget</code>, planet <code>name</code>, and <code>system</code>.',
+  hint:'WITH top AS (...), detail AS (SELECT ... FROM top JOIN planets ...) SELECT * FROM detail.',
+  sol:'WITH top AS (SELECT mission_id, codename, destination_id, budget FROM missions ORDER BY budget DESC LIMIT 1), detail AS (SELECT t.codename, t.budget, p.name, p.system FROM top t JOIN planets p ON t.destination_id = p.planet_id) SELECT codename, budget, name, system FROM detail;'},
+ {id:56,mod:6,xp:35,title:'Top budget per status',
+  brief:'For each mission status, which mission has the highest budget? Use a CTE + window function.',
+  task:'Using a CTE that applies <code>RANK()</code> within each <code>status</code> group by budget descending, return the <b>rank-1 missions</b> per status: <code>codename</code>, <code>status</code>, <code>budget</code>.',
+  hint:'WITH r AS (SELECT ..., RANK() OVER (PARTITION BY status ORDER BY budget DESC) AS rk FROM missions) SELECT ... WHERE rk = 1.',
+  sol:'WITH r AS (SELECT codename, status, budget, RANK() OVER (PARTITION BY status ORDER BY budget DESC) AS rk FROM missions) SELECT codename, status, budget FROM r WHERE rk = 1;'},
+
+/* --- Module 7 advanced --- */
+ {id:57,mod:7,xp:40,ordered:true,title:'Rolling average budget',
+  brief:'The finance committee wants a smoothed spend view \u2014 each mission shows the mean of the current and two preceding missions.',
+  task:'Return <code>codename</code>, <code>launch_date</code>, <code>budget</code>, and a <code>rolling_avg</code> using a 3-row window (<code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code>). Order by launch date.',
+  hint:'AVG(budget) OVER (ORDER BY launch_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_avg.',
+  sol:'SELECT codename, launch_date, budget, AVG(budget) OVER (ORDER BY launch_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_avg FROM missions ORDER BY launch_date;'},
+ {id:58,mod:7,xp:40,ordered:true,title:'Previous launch date',
+  brief:'The scheduling team wants to see each mission alongside the one that launched just before it.',
+  task:'Return <code>codename</code>, <code>launch_date</code>, and the <b>previous mission\u2019s launch date</b> as <code>prev_launch</code> (NULL for the first). Order by launch date.',
+  hint:'LAG(launch_date) OVER (ORDER BY launch_date) AS prev_launch.',
+  sol:'SELECT codename, launch_date, LAG(launch_date) OVER (ORDER BY launch_date) AS prev_launch FROM missions ORDER BY launch_date;'},
+ {id:59,mod:7,xp:40,ordered:true,title:'Salary quartiles',
+  brief:'Divide the crew into four equal-size pay bands to see the salary distribution.',
+  task:'Return each crew member\u2019s <code>name</code>, <code>salary</code>, and their salary <code>quartile</code> (1\u20134, lowest to highest). Order by salary.',
+  hint:'NTILE(4) OVER (ORDER BY salary) assigns rows to 4 equal buckets.',
+  sol:'SELECT name, salary, NTILE(4) OVER (ORDER BY salary) AS quartile FROM crew ORDER BY salary;'},
+
+/* --- Module 8: Nebula Challenges --- */
+ {id:60,mod:8,xp:40,difficulty:2,ordered:true,title:'Planet mission ranking',
+  brief:'Command needs to know which planets attract the most fleet activity \u2014 ranked, with ties sharing the same position.',
+  task:'Return planet <code>name</code>, <code>mission_count</code>, and <code>DENSE_RANK()</code> by mission count descending. Use a <code>LEFT JOIN</code> to include planets with zero missions. Order by rank.',
+  hint:'LEFT JOIN missions ON destination_id = planet_id, GROUP BY planet, then apply DENSE_RANK() OVER (ORDER BY COUNT(...) DESC).',
+  sol:'SELECT p.name, COUNT(m.mission_id) AS mission_count, DENSE_RANK() OVER (ORDER BY COUNT(m.mission_id) DESC) AS dr FROM planets p LEFT JOIN missions m ON p.planet_id = m.destination_id GROUP BY p.planet_id, p.name ORDER BY dr;'},
+ {id:61,mod:8,xp:45,difficulty:2,title:'Supply spend by star system',
+  brief:'The treasury wants total supply expenditure grouped by the star system each mission targeted.',
+  task:'Using two CTEs \u2014 one for per-mission supply cost, one joining missions to their planet\u2019s system \u2014 return each <code>system</code> and <code>total_supply_cost</code>, ordered highest first.',
+  hint:'WITH costs AS (SELECT mission_id, SUM(qty*uc) ...), sys AS (SELECT m.mission_id, p.system, costs.total ...) SELECT system, SUM(...) FROM sys GROUP BY system ORDER BY ...',
+  sol:"WITH mission_cost AS (SELECT mission_id, SUM(quantity * unit_cost) AS supply_cost FROM supplies GROUP BY mission_id), mission_sys AS (SELECT m.mission_id, p.system, COALESCE(mc.supply_cost, 0) AS supply_cost FROM missions m JOIN planets p ON m.destination_id = p.planet_id LEFT JOIN mission_cost mc ON m.mission_id = mc.mission_id) SELECT system, SUM(supply_cost) AS total_supply_cost FROM mission_sys GROUP BY system ORDER BY total_supply_cost DESC;"},
+ {id:62,mod:8,xp:40,difficulty:2,title:'Uncharted worlds',
+  brief:'Some planets have never been a mission destination. Find them without using JOINs.',
+  task:'Return the <code>name</code> of planets that have <b>never been targeted</b> by any mission. Use <code>NOT EXISTS</code>.',
+  hint:'WHERE NOT EXISTS (SELECT 1 FROM missions m WHERE m.destination_id = p.planet_id).',
+  sol:'SELECT name FROM planets p WHERE NOT EXISTS (SELECT 1 FROM missions m WHERE m.destination_id = p.planet_id);'},
+ {id:63,mod:8,xp:45,difficulty:2,title:'Above-average earners',
+  brief:'Which crew members out-earn the typical salary within their own specialty? This requires comparing each row to a group statistic.',
+  task:'Return <code>name</code>, <code>specialty</code>, and <code>salary</code> of crew whose pay exceeds the <b>average salary of their own specialty</b>. Use a correlated subquery. Order by specialty, salary descending.',
+  hint:'WHERE salary > (SELECT AVG(salary) FROM crew c2 WHERE c2.specialty = c.specialty) \u2014 the inner query references the outer row.',
+  sol:'SELECT name, specialty, salary FROM crew c WHERE salary > (SELECT AVG(salary) FROM crew c2 WHERE c2.specialty = c.specialty) ORDER BY specialty, salary DESC;'},
+ {id:64,mod:8,xp:40,difficulty:2,title:'Budget vs supply total',
+  brief:'Leadership wants a single side-by-side view of total mission budget commitments vs actual supply expenditure.',
+  task:'Use <code>UNION ALL</code> to combine two aggregate queries into one two-row result: one row for total mission budgets (<code>Mission Budgets</code>), one for total supply costs (<code>Supply Costs</code>). Columns: <code>category</code>, <code>total</code>.',
+  hint:"SELECT 'Mission Budgets', SUM(budget) FROM missions UNION ALL SELECT 'Supply Costs', SUM(quantity*unit_cost) FROM supplies.",
+  sol:"SELECT 'Mission Budgets' AS category, SUM(budget) AS total FROM missions UNION ALL SELECT 'Supply Costs', SUM(quantity * unit_cost) FROM supplies;"},
+ {id:65,mod:8,xp:45,difficulty:2,ordered:true,title:'Salary percentile by specialty',
+  brief:'Where does each crew member stand within their specialty group on a 0\u2013100 scale?',
+  task:'Return <code>name</code>, <code>specialty</code>, <code>salary</code>, and <code>pct_rank</code> (PERCENT_RANK within specialty \u00d7 100, rounded to 1 decimal). Order by specialty, salary.',
+  hint:'ROUND(PERCENT_RANK() OVER (PARTITION BY specialty ORDER BY salary) * 100, 1) AS pct_rank.',
+  sol:'SELECT name, specialty, salary, ROUND(PERCENT_RANK() OVER (PARTITION BY specialty ORDER BY salary) * 100, 1) AS pct_rank FROM crew ORDER BY specialty, salary;'},
+ {id:66,mod:8,xp:45,difficulty:2,ordered:true,title:'Top earner per department',
+  brief:'Each crew member\u2019s record should show who the highest-paid person in their specialty is.',
+  task:'Return <code>name</code>, <code>specialty</code>, <code>salary</code>, and <code>top_earner</code> (the name of the highest-paid crew in the same specialty). Order by specialty, salary descending.',
+  hint:'FIRST_VALUE(name) OVER (PARTITION BY specialty ORDER BY salary DESC) AS top_earner.',
+  sol:'SELECT name, specialty, salary, FIRST_VALUE(name) OVER (PARTITION BY specialty ORDER BY salary DESC) AS top_earner FROM crew ORDER BY specialty, salary DESC;'},
+ {id:67,mod:8,xp:50,difficulty:2,ordered:true,title:'Mission supply efficiency',
+  brief:'The final capstone: which missions are most costly per crew member? Combine CTEs, LEFT JOINs, COALESCE, and a window function into one query.',
+  task:'Compute supply cost per crew member for each mission. Return <code>codename</code>, <code>supply_cost</code>, <code>crew_size</code>, <code>cost_per_crew</code> (rounded, 0 when crew_size=0), and a <code>cost_rank</code> (<code>RANK()</code> by cost_per_crew descending). Order by cost_rank.',
+  hint:'Use three CTEs: crew counts from mission_crew, supply totals from supplies, then join both to missions. Apply RANK() in the outer SELECT.',
+  sol:'WITH cc AS (SELECT mission_id, COUNT(*) AS crew_size FROM mission_crew GROUP BY mission_id), sc AS (SELECT mission_id, SUM(quantity * unit_cost) AS supply_cost FROM supplies GROUP BY mission_id), eff AS (SELECT m.codename, COALESCE(sc.supply_cost,0) AS supply_cost, COALESCE(cc.crew_size,0) AS crew_size, ROUND(COALESCE(sc.supply_cost,0)*1.0/COALESCE(NULLIF(cc.crew_size,0),1),0) AS cost_per_crew FROM missions m LEFT JOIN cc ON m.mission_id=cc.mission_id LEFT JOIN sc ON m.mission_id=sc.mission_id) SELECT codename, supply_cost, crew_size, cost_per_crew, RANK() OVER (ORDER BY cost_per_crew DESC) AS cost_rank FROM eff ORDER BY cost_rank;'}
+];
+</script>
+<script>
+/* ================= APP ================= */
+const $ = id => document.getElementById(id);
+const KEY = 'starquery_progress_v1';
+const RANKS = [['Cadet',0],['Navigator',75],['Pilot',175],['Lieutenant',300],['Commander',450],['Captain',600],['Fleet Admiral',750]];
+const PLANET_CONFIG = {
+  1:{g:'radial-gradient(circle at 35% 30%,#FFD580,#92400E)',glow:'rgba(255,213,128,.65)',concept:'SELECT'},
+  2:{g:'radial-gradient(circle at 35% 30%,#93C5FD,#1D4ED8)',glow:'rgba(147,197,253,.6)',concept:'WHERE'},
+  3:{g:'radial-gradient(circle at 35% 30%,#C4B5FD,#5B21B6)',glow:'rgba(196,181,253,.6)',concept:'ORDER BY'},
+  4:{g:'radial-gradient(circle at 35% 30%,#FCA5A5,#991B1B)',glow:'rgba(252,165,165,.6)',concept:'GROUP BY'},
+  5:{g:'radial-gradient(circle at 35% 30%,#86EFAC,#14532D)',glow:'rgba(134,239,172,.55)',concept:'JOIN'},
+  6:{g:'radial-gradient(circle at 35% 30%,#94A3B8,#0F172A)',glow:'rgba(148,163,184,.45)',concept:'CTEs'},
+  7:{g:'radial-gradient(circle at 35% 30%,#BAE6FD,#075985)',glow:'rgba(186,230,253,.6)',concept:'WINDOW',ring:true},
+  8:{g:'radial-gradient(circle at 35% 30%,#F0ABFC,#701A75)',glow:'rgba(240,171,252,.6)',concept:'EXPERT'},
+};
+
+/* ---------- animations ---------- */
+function isModComplete(modId){
+  const exs = modExercises(modId);
+  return exs.length > 0 && exs.every(e=>state.solved[e.id]);
+}
+
+function playSuccessAnim(xpGain, anchorEl){
+  const rect = (anchorEl||$('verdict')).getBoundingClientRect();
+  const ox = rect.left + rect.width/2, oy = rect.top + rect.height/2;
+  const colors=['var(--amber)','var(--cyan)','var(--green)','var(--violet)','#fff'];
+  for(let i=0;i<14;i++){
+    const p=document.createElement('span'); p.className='sparkle';
+    const a=(i/14)*Math.PI*2, d=55+Math.random()*80;
+    const dur=(.45+Math.random()*.4).toFixed(2);
+    p.style.cssText=`left:${ox}px;top:${oy}px;width:${5+Math.random()*5}px;height:${5+Math.random()*5}px;background:${colors[i%colors.length]};--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;--dur:${dur}s`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(), parseFloat(dur)*1000+120);
+  }
+  if(xpGain > 0){
+    const xp=document.createElement('div'); xp.className='xp-pop';
+    xp.textContent=`+${xpGain} XP`;
+    xp.style.cssText=`left:${ox-28}px;top:${oy-16}px`;
+    document.body.appendChild(xp);
+    setTimeout(()=>xp.remove(), 1050);
+  }
+}
+
+function playModCompleteAnim(modId){
+  const pc=PLANET_CONFIG[modId]||{g:'#222',glow:'rgba(255,180,84,.4)',concept:''};
+  const mod=MODULES.find(m=>m.id===modId);
+  const p=$('mcPlanet');
+  const dimGlow = pc.glow.replace(/,[\d.]+\)$/, ',.18)');
+  p.style.cssText=`background:${pc.g};box-shadow:0 0 40px ${pc.glow},0 0 80px ${dimGlow}`;
+  p.classList.remove('mc-pop-run'); void p.offsetWidth; p.classList.add('mc-pop-run');
+  $('mcHeading').textContent=(mod?mod.name:'Module')+' — COMPLETE';
+  $('mcHint').textContent=`${pc.concept} mastered · Plotting course to next sector…`;
+  const ov=$('mcOverlay'); ov.classList.add('show');
+  const cx=window.innerWidth/2, cy=window.innerHeight/2;
+  const starColors=['var(--amber)','var(--cyan)','var(--violet)'];
+  for(let i=0;i<28;i++){
+    const s=document.createElement('span'); s.className='starburst';
+    const a=(i/28)*Math.PI*2, d=90+Math.random()*130;
+    s.style.cssText=`left:${cx}px;top:${cy}px;background:${starColors[i%3]};--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;--d:${(1+Math.random()*.5).toFixed(2)}s`;
+    ov.appendChild(s);
+    setTimeout(()=>s.remove(), 1700);
+  }
+  setTimeout(()=>ov.classList.remove('show'), 3000);
+  ov.onclick=()=>ov.classList.remove('show');
+}
+
+function playRankUpAnim(newRank){
+  const f=$('rankFlash');
+  f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+  const b=$('rankbtn'); b.classList.remove('rank-pop'); void b.offsetWidth; b.classList.add('rank-pop');
+  setTimeout(()=>b.classList.remove('rank-pop'), 550);
+}
+
+function scheduleShootingStar(){
+  const delay=4500+Math.random()*7000;
+  setTimeout(()=>{
+    const s=document.createElement('span'); s.className='shooting-star';
+    s.style.cssText=`top:${4+Math.random()*35}%;left:${55+Math.random()*40}%`;
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 900);
+    scheduleShootingStar();
+  }, delay);
+}
+
+let SQLLib = null, snapshot = null;
+let state = {xp:0, solved:{}, revealed:{}, attempts:0, correct:0, streak:0, bestStreak:0};
+let current = null;            // current exercise object, or {free:true}
+const drafts = {};             // per-exercise editor drafts (session only)
+const solCache = {};           // cached expected results
+
+/* ---------- persistence ---------- */
+async function loadState(){
+  try{
+    if(window.storage){
+      const r = await window.storage.get(KEY);
+      if(r && r.value) return JSON.parse(r.value);
+    }
+    const ls = localStorage.getItem(KEY);
+    if(ls) return JSON.parse(ls);
+  }catch(e){}
+  return null;
+}
+let saveTimer = null;
+function saveState(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    const json = JSON.stringify(state);
+    try{ localStorage.setItem(KEY, json); }catch(e){}
+    try{ if(window.storage) await window.storage.set(KEY, json); }catch(e){}
+  }, 250);
+}
+
+/* ---------- sql helpers ---------- */
+function execSQL(sql){
+  const d = new SQLLib.Database(snapshot);
+  try{
+    const out = d.exec(sql);
+    return {ok:true, res: out.length ? out[out.length-1] : null};
+  }catch(e){
+    return {ok:false, err: e.message};
+  }finally{ d.close(); }
+}
+function fmtCell(v){
+  if(v === null || v === undefined) return '\u2400';
+  if(typeof v === 'number') return Number.isInteger(v) ? String(v) : String(Math.round(v*1e6)/1e6);
+  return String(v);
+}
+function normalize(res, ordered){
+  if(!res) return {cols:0, names:[], rows:[]};
+  const rows = res.values.map(r => r.map(fmtCell));
+  if(!ordered) rows.sort((a,b)=> a.join('\u0001') < b.join('\u0001') ? -1 : a.join('\u0001') > b.join('\u0001') ? 1 : 0);
+  return {cols: res.columns.length, names: res.columns.map(c=>String(c).toLowerCase()), rows};
+}
+function expectedFor(ex){
+  if(!solCache[ex.id]){
+    const r = execSQL(ex.sol);
+    solCache[ex.id] = r.res;
+  }
+  return solCache[ex.id];
+}
+
+/* ---------- rendering ---------- */
+function rankFor(xp){
+  let cur = RANKS[0], next = null;
+  for(const r of RANKS){ if(xp >= r[1]) cur = r; else { next = r; break; } }
+  return {name:cur[0], base:cur[1], next};
+}
+function renderTop(){
+  const r = rankFor(state.xp);
+  $('rankname').textContent = r.name;
+  $('streak').querySelector('span').textContent = state.streak;
+  if(r.next){
+    $('xptext').textContent = `${state.xp} XP \u00b7 ${r.next[0].toUpperCase()} AT ${r.next[1]}`;
+    const span = r.next[1] - r.base;
+    $('xpfill').style.width = Math.min(100, Math.round((state.xp - r.base)/span*100)) + '%';
+  }else{
+    $('xptext').textContent = `${state.xp} XP \u00b7 MAX RANK`;
+    $('xpfill').style.width = '100%';
+  }
+}
+function modExercises(mid){ return EX.filter(e=>e.mod===mid); }
+function modSolved(mid){ return modExercises(mid).filter(e=>state.solved[e.id]).length; }
+
+function renderFlight(){
+  const path=$('path'); path.innerHTML='';
+  MODULES.forEach(m=>{
+    const exs=m.free?[]:modExercises(m.id);
+    const done=m.free?0:modSolved(m.id);
+    const isDone=!m.free&&exs.length>0&&done===exs.length;
+    const isActive=current&&((current.free&&m.free)||(!current.free&&current.mod===m.id));
+    if(m.free){
+      const b=document.createElement('button');
+      b.className='free-node-btn'+(isActive?' active':'');
+      b.innerHTML=`<div class="free-icon">\u221e</div>
+        <div class="planet-info">
+          <span class="planet-label">${m.name}</span>
+          <span class="planet-sub-txt">${m.sub}</span>
+        </div>`;
+      b.onclick=()=>{ openFree(); $('flight').classList.remove('open'); };
+      path.appendChild(b); return;
+    }
+    const pc=PLANET_CONFIG[m.id]||{g:'var(--panel2)',glow:'rgba(255,255,255,.3)',concept:'SQL',ring:false};
+    const moonExs=exs.slice(0,Math.min(exs.length,12));
+    const moonsHtml=moonExs.map(e=>{
+      const isCur=current&&!current.free&&e.id===current.id;
+      return `<span class="moon${state.solved[e.id]?' ok':isCur?' cur':''}"></span>`;
+    }).join('');
+    const b=document.createElement('button');
+    b.className='planet-slot'+(isDone?' done':'')+(isActive?' active':'');
+    b.style.setProperty('--glow',pc.glow);
+    b.innerHTML=`<div class="planet-wrap">
+        <div class="planet-body" style="--pg:${pc.g};--glow:${pc.glow}">
+          ${pc.ring?'<div class="planet-ring"></div>':''}
+        </div>
+        <div class="planet-moons">${moonsHtml}</div>
+      </div>
+      <div class="planet-info">
+        <span class="planet-label">${m.name}</span>
+        <span class="planet-sub-txt">${pc.concept} \u00b7 ${m.sub}</span>
+        <span class="planet-prog-txt">${done}/${exs.length} missions</span>
+      </div>`;
+    b.onclick=()=>{
+      const first=exs.find(e=>!state.solved[e.id])||exs[0];
+      openExercise(first.id);
+      $('flight').classList.remove('open');
+    };
+    path.appendChild(b);
+  });
+}
+function renderChips(){
+  const c = $('chips');
+  if(current.free){ c.innerHTML=''; return; }
+  c.innerHTML = '';
+  modExercises(current.mod).forEach((e,i)=>{
+    const b = document.createElement('button');
+    b.className = 'chip' + (state.solved[e.id]?' ok':'') + (e.id===current.id?' cur':'');
+    b.textContent = i+1;
+    b.title = e.title;
+    b.onclick = ()=>openExercise(e.id);
+    c.appendChild(b);
+  });
+}
+function clearPanels(){
+  $('verdict').className='verdict'; $('hintbox').className='hintbox'; $('solbox').className='solbox';
+  $('results').style.display='none'; $('nextbtn').style.display='none';
+}
+function openExercise(id){
+  if(current && !current.free) drafts[current.id] = $('editor').value;
+  current = EX.find(e=>e.id===id);
+  const m = MODULES.find(x=>x.id===current.mod);
+  const idx = modExercises(current.mod).findIndex(e=>e.id===id)+1;
+  $('crumb').innerHTML = `MODULE ${m.id} \u00b7 ${m.name} <span class="sep">/</span> MISSION ${idx} <span class="sep">/</span> +${current.xp} XP ${state.solved[current.id]?'<span class="sep">/</span> <span style="color:var(--green)">SOLVED \u2713</span>':''}`;
+  $('extitle').innerHTML = escapeHtml(current.title) + (current.difficulty===2 ? ' <span class="diff2">⚡⚡ ADVANCED</span>' : '');
+  $('exbrief').textContent = current.brief;
+  $('extask').innerHTML = '<b>Objective:</b> ' + current.task + (current.ordered ? ' <span style="color:var(--faint)">(row order matters)</span>' : '');
+  $('extask').style.display='block';
+  $('hintbtn').style.display=''; $('solbtn').style.display='';
+  $('editor').value = drafts[current.id] || '';
+  $('hintbox').innerHTML = '<b>Nav computer:</b> ' + current.hint;
+  $('solbox').innerHTML = '<b>Reference solution</b> \u2014 solving after a reveal earns 25% XP.<pre>'+current.sol+'</pre>';
+  clearPanels();
+  renderChips(); renderFlight();
+  $('main').scrollTop = 0; window.scrollTo(0,0);
+}
+function openFree(){
+  if(current && !current.free) drafts[current.id] = $('editor').value;
+  current = {free:true};
+  $('crumb').innerHTML = 'MODULE 9 \u00b7 FREE FLIGHT';
+  $('extitle').textContent = 'Open sandbox';
+  $('exbrief').textContent = 'No objective, no scoring \u2014 the whole fleet database is yours. Explore, break things, get curious.';
+  $('extask').style.display='none';
+  $('hintbtn').style.display='none'; $('solbtn').style.display='none';
+  $('editor').value = drafts['free'] || 'SELECT * FROM missions;';
+  clearPanels(); renderChips(); renderFlight();
+}
+function nextExercise(){
+  const i = EX.findIndex(e=>e.id===current.id);
+  if(i >= 0 && i < EX.length-1) openExercise(EX[i+1].id); else openFree();
+}
+
+function renderTable(container, res, limit){
+  if(!res || !res.columns.length){ container.innerHTML = '<div style="padding:14px;color:var(--faint);font-family:var(--mono);font-size:12px">No rows returned.</div>'; return 0; }
+  const rows = limit ? res.values.slice(0,limit) : res.values;
+  let h = '<table class="grid"><thead><tr>' + res.columns.map(c=>`<th>${escapeHtml(String(c))}</th>`).join('') + '</tr></thead><tbody>';
+  for(const r of rows){
+    h += '<tr>' + r.map(v => v===null ? '<td class="null">NULL</td>' : `<td>${escapeHtml(fmtCell(v))}</td>`).join('') + '</tr>';
+  }
+  container.innerHTML = h + '</tbody></table>';
+  return res.values.length;
+}
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function verdict(kind, title, msg){
+  const v = $('verdict');
+  v.className = 'verdict show ' + kind;
+  $('vtitle').textContent = title;
+  $('vmsg').innerHTML = msg;
+}
+let _toastTimer=null;
+function toast(html, ms=2600){
+  const t=$('toast'); t.innerHTML=html; t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+/* ---------- run & check ---------- */
+function run(){
+  const sql = $('editor').value.trim();
+  if(!sql){ verdict('err','Console is empty','Type a query, then press Run \u2014 start with something like <code>SELECT * FROM planets;</code>'); return; }
+  if(!current.free) drafts[current.id] = $('editor').value; else drafts['free'] = $('editor').value;
+
+  const out = execSQL(sql);
+  if(!out.ok){
+    verdict('err','Engine fault', 'The database engine reported: <code>'+escapeHtml(out.err)+'</code><br>Check spelling, commas, and quotes \u2014 text values use single quotes.');
+    $('results').style.display='none';
+    return;
+  }
+  $('results').style.display='block';
+  const n = renderTable($('restbl'), out.res);
+  $('rowcount').textContent = n + (n===1?' row':' rows') + ' returned';
+
+  if(current.free){ verdict('ok','Query executed','Telemetry received below. Try joining tables or aggregating \u2014 nobody is grading you out here.'); return; }
+
+  const exp = normalize(expectedFor(current), current.ordered);
+  const got = normalize(out.res, current.ordered);
+
+  let match = exp.cols === got.cols && exp.rows.length === got.rows.length &&
+              JSON.stringify(exp.rows) === JSON.stringify(got.rows);
+  if(match && current.checkNames) match = JSON.stringify(exp.names) === JSON.stringify(got.names);
+
+  state.attempts++;
+  if(match){
+    state.correct++; state.streak++; state.bestStreak = Math.max(state.bestStreak, state.streak);
+    const oldRank=rankFor(state.xp).name;
+    if(!state.solved[current.id]){
+      const gain = state.revealed[current.id] ? Math.max(1, Math.round(current.xp*0.25)) : current.xp;
+      state.xp += gain;
+      state.solved[current.id] = {xp:gain};
+      syncProgress(current.id, gain);
+      playSuccessAnim(gain, $('verdict'));
+      toast(`<b>+${gain} XP</b> \u00b7 Mission complete \u2014 ${escapeHtml(current.title)}`);
+      verdict('ok','Mission complete \u2713', `Result verified against mission control. ${state.streak>1?`Warp streak: <b>${state.streak}</b>.`:''} Ready for the next one?`);
+      $('nextbtn').style.display='';
+      const newRank=rankFor(state.xp).name;
+      if(newRank!==oldRank){ setTimeout(()=>{ playRankUpAnim(newRank); toast(`<b>RANK UP</b> \u2014 ${newRank}! Navigation systems upgraded.`, 4000); }, 700); }
+      if(isModComplete(current.mod)) setTimeout(()=>playModCompleteAnim(current.mod), 1300);
+    }else{
+      playSuccessAnim(0, $('verdict'));
+      verdict('ok','Still correct \u2713','You already cleared this mission \u2014 nice form on the re-run.');
+      $('nextbtn').style.display='';
+    }
+  }else{
+    state.streak = 0;
+    let why;
+    if(exp.cols !== got.cols) why = `Mission control expected <b>${exp.cols}</b> column${exp.cols===1?'':'s'}, your result has <b>${got.cols}</b>.`;
+    else if(exp.rows.length !== got.rows.length) why = `Expected <b>${exp.rows.length}</b> row${exp.rows.length===1?'':'s'}, your result has <b>${got.rows.length}</b>. Check your filters or joins.`;
+    else if(current.checkNames) why = 'The values look right but the <b>column names</b> don\u2019t match \u2014 this mission checks aliases.';
+    else why = current.ordered ? 'Same shape, different content or <b>row order</b> \u2014 this mission checks ordering.' : 'Same shape, but some values differ. Compare your output with the objective.';
+    verdict('bad','Off course', why + ' The hint button is free.');
+  }
+  renderTop(); renderFlight(); renderChips(); saveState();
+  if(match){
+    const m = MODULES.find(x=>x.id===current.mod);
+    const idx = modExercises(current.mod).findIndex(e=>e.id===current.id)+1;
+    $('crumb').innerHTML = `MODULE ${m.id} \u00b7 ${m.name} <span class="sep">/</span> MISSION ${idx} <span class="sep">/</span> +${current.xp} XP <span class="sep">/</span> <span style="color:var(--green)">SOLVED \u2713</span>`;
+  }
+}
+
+/* ---------- schema panel ---------- */
+function renderSchema(){
+  const wrap = $('tables'); wrap.innerHTML='';
+  SCHEMA.forEach(s=>{
+    const d = document.createElement('div'); d.className='tbl';
+    const cols = s.cols.map(c=>`<div>${c[0]}<span>${c[1]}</span></div>`).join('');
+    d.innerHTML = `<button aria-expanded="false">\u25B8 ${s.t}<span class="n">${s.cols.length} cols</span></button>
+      <div class="cols">${cols}<button class="peek">view 3 sample rows</button><div class="peekout"></div></div>`;
+    const head = d.querySelector('button');
+    head.onclick = ()=>{ d.classList.toggle('open'); head.setAttribute('aria-expanded', d.classList.contains('open')); head.innerHTML = head.innerHTML.replace(d.classList.contains('open')?'\u25B8':'\u25BE', d.classList.contains('open')?'\u25BE':'\u25B8'); };
+    d.querySelector('.peek').onclick = ()=>{
+      const out = execSQL(`SELECT * FROM ${s.t} LIMIT 3;`);
+      const box = d.querySelector('.peekout');
+      box.style.cssText='margin-top:8px;overflow:auto;border:1px solid var(--line-soft);border-radius:8px';
+      if(out.ok) renderTable(box, out.res);
+    };
+    wrap.appendChild(d);
+  });
+}
+
+/* ---------- stats ---------- */
+function openStats(){
+  const r = rankFor(state.xp);
+  $('statRank').textContent = 'Flight log \u00b7 ' + r.name;
+  $('statSub').textContent = r.next ? `${r.next[1]-state.xp} XP to ${r.next[0]}.` : 'Highest rank in the fleet. Teach someone else now.';
+  $('sXP').textContent = state.xp;
+  $('sSolved').textContent = Object.keys(state.solved).length + '/' + EX.length;
+  $('sAcc').textContent = state.attempts ? Math.round(state.correct/state.attempts*100)+'%' : '\u2014';
+  $('sStreak').textContent = state.bestStreak;
+  const mb = $('modbars'); mb.innerHTML='';
+  MODULES.filter(m=>!m.free).forEach(m=>{
+    const tot = modExercises(m.id).length, done = modSolved(m.id);
+    mb.innerHTML += `<div class="mbar"><div class="t"><span>${m.name} \u00b7 ${m.sub}</span><span>${done}/${tot}</span></div>
+      <div class="b"><i style="width:${tot?Math.round(done/tot*100):0}%"></i></div></div>`;
+  });
+  $('statsOverlay').classList.add('show');
+}
+
+/* ---------- starfield ---------- */
+function buildStars(){
+  const wrap=$('stars');
+  for(let i=0;i<100;i++){
+    const s=document.createElement('span'); s.className='star';
+    const sz=i<65?1:i<88?1.5:2.5;
+    s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${sz}px;height:${sz}px;--tw:${(2+Math.random()*5).toFixed(1)}s;animation-delay:${(Math.random()*6).toFixed(1)}s`;
+    wrap.appendChild(s);
+  }
+}
+
+/* ---------- wiring ---------- */
+$('runbtn').onclick = run;
+$('nextbtn').onclick = nextExercise;
+$('hintbtn').onclick = ()=> $('hintbox').classList.toggle('show');
+$('solbtn').onclick = ()=>{
+  if(!current || current.free) return;
+  if(!state.revealed[current.id] && !state.solved[current.id]){
+    if(!confirm('Reveal the reference solution? Solving this mission afterwards earns 25% of its XP.')) return;
+    state.revealed[current.id] = true; saveState();
+  }
+  $('solbox').classList.toggle('show');
+};
+$('rankbtn').onclick = openStats;
+$('closeStats').onclick = ()=> $('statsOverlay').classList.remove('show');
+$('statsOverlay').onclick = e=>{ if(e.target === $('statsOverlay')) $('statsOverlay').classList.remove('show'); };
+$('authModal').onclick   = e=>{ if(e.target === $('authModal'))   closeAuthModal(); };
+$('lbModal').onclick     = e=>{ if(e.target === $('lbModal'))     $('lbModal').classList.remove('show'); };
+$('lbBtn').onclick       = openLeaderboard;
+$('loginBtn').onclick    = openAuthModal;
+$('logoutBtn').onclick   = doSignOut;
+$('resetBtn').onclick = ()=>{
+  if(!confirm('Erase all XP, streaks and solved missions? This cannot be undone.')) return;
+  state = {xp:0, solved:{}, revealed:{}, attempts:0, correct:0, streak:0, bestStreak:0};
+  saveState(); renderTop(); renderFlight();
+  $('statsOverlay').classList.remove('show');
+  openExercise(EX[0].id);
+};
+$('flightToggle').onclick = ()=> $('flight').classList.toggle('open');
+$('schemaToggle').onclick = ()=> $('schema').classList.toggle('open');
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape'){
+    $('statsOverlay').classList.remove('show');
+    $('authModal').classList.remove('show');
+    $('lbModal').classList.remove('show');
+    $('flight').classList.remove('open');
+    $('schema').classList.remove('open');
+  }
+});
+$('editor').addEventListener('keydown', e=>{
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); run(); }
+  if(e.key === 'Tab'){
+    e.preventDefault();
+    const t = e.target, s = t.selectionStart;
+    t.value = t.value.slice(0,s) + '  ' + t.value.slice(t.selectionEnd);
+    t.selectionStart = t.selectionEnd = s+2;
+  }
+});
+
+function firstUnsolved(){ const e = EX.find(x=>!state.solved[x.id]); return e ? e.id : EX[0].id; }
+
+/* ================= SUPABASE BACKEND =================
+   Replace the two constants below with your project values.
+   Dashboard → Settings → API → Project URL & anon/public key.
+   Leave as-is to run in offline/guest mode with no cloud features.
+   ===================================================== */
+const SUPABASE_URL      = 'https://zyhnzdsuhejvmffsnsht.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5aG56ZHN1aGVqdm1mZnNuc2h0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MzY5MjgsImV4cCI6MjA5NzExMjkyOH0.tAq7aptgHMVBLOpySa755o-IggZmMxDykkO5W7DFqqc';
+
+let sb = null;
+let currentUser = null;
+let currentUsername = '';
+
+function initSupabase(){
+  try{
+    if(typeof window.supabase === 'undefined') return;
+    if(SUPABASE_URL.includes('YOUR_PROJECT_REF')) return; // still placeholder
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb.auth.onAuthStateChange(async (event, session)=>{
+      currentUser = session?.user ?? null;
+      updateAuthUI();
+      if(event === 'SIGNED_IN') await mergeCloudProgress();
+    });
+    sb.auth.getSession().then(({data:{session}})=>{
+      currentUser = session?.user ?? null;
+      updateAuthUI();
+      if(currentUser) mergeCloudProgress();
+    });
+  }catch(e){ console.warn('Supabase init:', e); }
+}
+
+function updateAuthUI(){
+  if(!sb) return;
+  const in_ = !!currentUser;
+  $('loginBtn').style.display  = in_ ? 'none' : '';
+  $('userChip').style.display  = in_ ? 'flex' : 'none';
+  $('logoutBtn').style.display = in_ ? '' : 'none';
+  $('verifyBanner').style.display = (in_ && !currentUser.email_confirmed_at) ? '' : 'none';
+  if(in_){
+    sb.from('profiles').select('username').eq('id', currentUser.id).single()
+      .then(({data})=>{ if(data){ currentUsername = data.username; $('userLabel').textContent = data.username; } });
+  } else {
+    currentUsername = '';
+  }
+}
+
+async function mergeCloudProgress(){
+  if(!sb || !currentUser) return;
+  try{
+    const {data} = await sb.from('progress').select('exercise_id,xp_earned');
+    const cloudIds = new Set((data||[]).map(r => r.exercise_id));
+    // cloud → local
+    let added = 0;
+    (data||[]).forEach(row=>{
+      if(!state.solved[row.exercise_id]){
+        state.solved[row.exercise_id] = {xp: row.xp_earned};
+        state.xp += row.xp_earned;
+        added++;
+      }
+    });
+    // local → cloud (upload sessions played before sign-in)
+    const localOnly = Object.keys(state.solved).filter(id=>!cloudIds.has(Number(id)));
+    for(const id of localOnly){
+      await sb.from('progress').upsert(
+        {user_id: currentUser.id, exercise_id: Number(id), xp_earned: state.solved[id].xp},
+        {onConflict:'user_id,exercise_id', ignoreDuplicates:true}
+      );
+    }
+    if(added > 0){
+      saveState();
+      renderTop(); renderFlight(); renderChips();
+      toast(`☁️ Synced ${added} mission${added===1?'':'s'} from cloud.`);
+    } else if(localOnly.length > 0){
+      toast(`☁️ Uploaded ${localOnly.length} local mission${localOnly.length===1?'':'s'} to cloud.`);
+    }
+  }catch(e){ console.warn('mergeCloudProgress:', e); }
+}
+
+async function syncProgress(exerciseId, xpEarned){
+  if(!sb || !currentUser) return;
+  try{
+    await sb.from('progress').upsert(
+      {user_id: currentUser.id, exercise_id: exerciseId, xp_earned: xpEarned},
+      {onConflict:'user_id,exercise_id', ignoreDuplicates:true}
+    );
+  }catch(e){}
+}
+
+/* ---- auth modals ---- */
+function openAuthModal(){
+  const cfgd = !!sb;
+  $('notConfigured').style.display = cfgd ? 'none' : '';
+  $('authTabs').style.display      = cfgd ? '' : 'none';
+  $('loginForm').style.display     = cfgd ? '' : 'none';
+  $('signupForm').style.display    = 'none';
+  if(cfgd) showAuthTab('login');
+  $('authMsg').textContent = '';
+  $('authModal').classList.add('show');
+}
+function closeAuthModal(){ $('authModal').classList.remove('show'); }
+function showAuthTab(tab){
+  $('loginForm').style.display  = tab==='login'  ? '' : 'none';
+  $('signupForm').style.display = tab==='signup' ? '' : 'none';
+  $('tabLogin').classList.toggle('active',  tab==='login');
+  $('tabSignup').classList.toggle('active', tab==='signup');
+  $('authMsg').textContent = '';
+  setTimeout(()=>{ const f=tab==='login'?$('loginEmail'):$('signupUsername'); if(f)f.focus(); }, 80);
+}
+function setAuthMsg(msg, ok=false){ const el=$('authMsg'); el.textContent=msg; el.className='auth-msg'+(ok?' ok':''); }
+
+async function doSignIn(){
+  if(!sb) return;
+  const email=($('loginEmail').value||'').trim(), pass=$('loginPass').value;
+  if(!email||!pass){ setAuthMsg('Enter your email and password.'); return; }
+  setAuthMsg('Launching…');
+  const {error}=await sb.auth.signInWithPassword({email, password:pass});
+  if(error){ setAuthMsg(error.message); return; }
+  closeAuthModal();
+  toast('<b>Welcome back, cosmonaut.</b> Progress syncing…');
+}
+
+async function doSignUp(){
+  if(!sb) return;
+  const username=($('signupUsername').value||'').trim();
+  const email=($('signupEmail').value||'').trim();
+  const pass=$('signupPass').value;
+  if(!username){ setAuthMsg('Choose a callsign.'); return; }
+  if(username.length<3||username.length>20){ setAuthMsg('Callsign must be 3–20 characters.'); return; }
+  if(!/^[a-zA-Z0-9_]+$/.test(username)){ setAuthMsg('Callsign: letters, numbers and underscores only.'); return; }
+  if(!email){ setAuthMsg('Enter your email address.'); return; }
+  if(pass.length<6){ setAuthMsg('Password must be at least 6 characters.'); return; }
+  setAuthMsg('Checking callsign…');
+  const {data:taken}=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
+  if(taken){ setAuthMsg('That callsign is taken — choose another.'); return; }
+  setAuthMsg('Registering…');
+  const {error}=await sb.auth.signUp({email, password:pass, options:{data:{username}}});
+  if(error){ setAuthMsg(error.message); return; }
+  closeAuthModal();
+  toast('📧 Check your inbox to verify your email, then sign in!', 5000);
+}
+
+async function doResetPassword(){
+  if(!sb) return;
+  const email=($('loginEmail').value||'').trim();
+  if(!email){ setAuthMsg('Enter your email first.'); return; }
+  await sb.auth.resetPasswordForEmail(email, {redirectTo: location.href});
+  setAuthMsg('Password reset link sent — check your inbox.', true);
+}
+
+async function doSignOut(){
+  if(!sb) return;
+  await sb.auth.signOut();
+  currentUser=null; currentUsername=''; updateAuthUI();
+  toast('Signed out. Local progress is preserved.');
+}
+
+async function resendVerification(){
+  if(!sb||!currentUser) return;
+  await sb.auth.resend({type:'signup', email:currentUser.email});
+  toast('Verification email sent — check your inbox.');
+}
+
+/* ---- leaderboard ---- */
+function openLeaderboard(){ $('lbModal').classList.add('show'); loadLeaderboard(); }
+async function loadLeaderboard(){
+  const list=$('lbList');
+  list.innerHTML='<div style="text-align:center;padding:24px;color:var(--faint);font-family:var(--mono);font-size:12px;letter-spacing:.1em">LOADING TELEMETRY…</div>';
+  if(!sb){
+    list.innerHTML='<div class="notcfg">Leaderboard requires Supabase setup. Configure <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> and deploy to see rankings.</div>';
+    return;
+  }
+  try{
+    const {data,error}=await sb.rpc('get_leaderboard');
+    if(error||!data?.length){
+      list.innerHTML='<div style="padding:16px;color:var(--faint);font-size:14px">No entries yet — be the first to reach orbit!</div>';
+      return;
+    }
+    const myName=currentUsername;
+    let html='';
+    data.forEach((row,i)=>{
+      const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+      const me=row.username===myName;
+      html+=`<div class="lb-row${me?' me':''}">
+        <span class="lb-rank">${medal}</span>
+        <span class="lb-name">${escapeHtml(row.username)}${me?' ★':''}</span>
+        <span class="lb-xp">${row.total_xp} XP</span>
+        <span class="lb-solved">${row.solved_count} solved</span>
+      </div>`;
+    });
+    list.innerHTML=html;
+  }catch(e){
+    list.innerHTML='<div style="padding:16px;color:var(--red);font-size:13px">Could not load leaderboard.</div>';
+  }
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  const msgs = ['Initializing warp core\u2026','Loading SQL engine\u2026','Seeding fleet database\u2026','Calibrating telemetry\u2026'];
+  let mi = 0; const cycle = setInterval(()=>{ $('bootmsg').textContent = msgs[mi++ % msgs.length]; }, 900);
+  try{
+    SQLLib = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}` });
+    const d0 = new SQLLib.Database();
+    d0.run(INIT_SQL);
+    snapshot = d0.export();
+    d0.close();
+    const saved = await loadState();
+    if(saved && typeof saved === 'object') state = Object.assign(state, saved);
+    buildStars(); scheduleShootingStar(); renderSchema(); renderTop();
+    openExercise(firstUnsolved());
+    clearInterval(cycle);
+    $('boot').style.display = 'none';
+    initSupabase();
+  }catch(err){
+    clearInterval(cycle);
+    $('bootmsg').textContent = 'Could not reach the SQL engine CDN. Check your connection and reload.';
+  }
+})();
+</script>
+</body>
+</html>
